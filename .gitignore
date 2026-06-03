@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Raw email attachments — source data, not project code
+email_thread_artifacts/
+
+# Trained model binaries — large, regenerable via train.py
+*.pkl
+*.h5
+*.tflite
+*.h
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

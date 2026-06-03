@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Implementation Report — Physiological Stress Classification Pipeline</title>
+<style>
+  :root {
+    --accent: #2563eb;
+    --accent-light: #dbeafe;
+    --accent-dark: #1e40af;
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --border: #e2e8f0;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --code-bg: #0f172a;
+    --code-text: #e2e8f0;
+    --success: #059669;
+    --warning: #d97706;
+    --sidebar-w: 260px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 15px;
+  }
+
+  /* ── Sidebar ────────────────────────────────────────────── */
+  #sidebar {
+    position: fixed;
+    top: 0; left: 0;
+    width: var(--sidebar-w);
+    height: 100vh;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 0 0 2rem;
+    z-index: 100;
+  }
+
+  .sidebar-header {
+    padding: 1.5rem 1.25rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(135deg, var(--accent-dark) 0%, var(--accent) 100%);
+    color: white;
+  }
+
+  .sidebar-header .tag {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.8;
+    margin-bottom: 0.4rem;
+  }
+
+  .sidebar-header h2 {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  #sidebar nav { padding: 1rem 0; }
+
+  #sidebar nav a {
+    display: block;
+    padding: 0.45rem 1.25rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 13px;
+    border-left: 3px solid transparent;
+    transition: all 0.15s;
+  }
+
+  #sidebar nav a:hover,
+  #sidebar nav a.active {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    background: var(--accent-light);
+  }
+
+  #sidebar nav a .num {
+    display: inline-block;
+    width: 20px;
+    font-size: 11px;
+    color: var(--text-muted);
+    opacity: 0.6;
+  }
+
+  /* ── Main content ───────────────────────────────────────── */
+  #content {
+    margin-left: var(--sidebar-w);
+    min-height: 100vh;
+  }
+
+  /* Hero */
+  .hero {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #1e40af 100%);
+    color: white;
+    padding: 4rem 4rem 3rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%; right: -10%;
+    width: 500px; height: 500px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(96,165,250,0.12) 0%, transparent 70%);
+  }
+
+  .hero-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #93c5fd;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.9rem;
+    border-radius: 999px;
+    margin-bottom: 1.2rem;
+  }
+
+  .hero h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.25;
+    margin-bottom: 1rem;
+    max-width: 700px;
+  }
+
+  .hero p {
+    color: #93c5fd;
+    font-size: 14px;
+    max-width: 600px;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+  }
+
+  .hero-meta {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+  }
+
+  .hero-meta .item { display: flex; flex-direction: column; gap: 0.2rem; }
+  .hero-meta .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.4); }
+  .hero-meta .value { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.9); }
+
+  /* Sections */
+  .section {
+    padding: 3rem 4rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section:last-child { border-bottom: none; }
+
+  .section-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+  }
+
+  .section h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid var(--accent-light);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .section h2 .icon {
+    width: 32px; height: 32px;
+    background: var(--accent-light);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+
+  .section h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 1.75rem 0 0.75rem;
+    padding-left: 0.75rem;
+    border-left: 3px solid var(--accent);
+  }
+
+  .section p { margin-bottom: 1rem; color: #334155; }
+
+  /* Callout */
+  .callout {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-left: 4px solid #f59e0b;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin: 1.5rem 0;
+    font-size: 14px;
+    color: #78350f;
+  }
+
+  .callout.info {
+    background: var(--accent-light);
+    border-color: #bfdbfe;
+    border-left-color: var(--accent);
+    color: #1e3a8a;
+  }
+
+  .callout.success {
+    background: #ecfdf5;
+    border-color: #a7f3d0;
+    border-left-color: var(--success);
+    color: #064e3b;
+  }
+
+  /* Tables */
+  .table-wrap {
+    overflow-x: auto;
+    margin: 1.25rem 0;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+
+  thead { background: linear-gradient(to right, #1e3a8a, var(--accent)); }
+  thead th {
+    color: white;
+    font-weight: 600;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-size: 12px;
+    letter-spacing: 0.03em;
+  }
+
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #f1f5f9; }
+
+  tbody td {
+    padding: 0.65rem 1rem;
+    color: #334155;
+    vertical-align: middle;
+  }
+
+  tbody tr:nth-child(even) { background: #f8fafc; }
+  tbody tr:nth-child(even):hover { background: #f1f5f9; }
+
+  .badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-mixed    { background: #ede9fe; color: #5b21b6; }
+  .badge-distress { background: #fee2e2; color: #991b1b; }
+  .badge-relaxed  { background: #ecfdf5; color: #064e3b; }
+  .badge-eustress { background: #fef9c3; color: #713f12; }
+
+  /* Pipeline diagram */
+  .pipeline {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin: 1.5rem 0;
+    flex-wrap: wrap;
+  }
+
+  .pipe-stage {
+    flex: 1;
+    min-width: 160px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem 1rem;
+    position: relative;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+
+  .pipe-stage .stage-num {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 0.4rem;
+  }
+
+  .pipe-stage .stage-name {
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 0.3rem;
+    color: var(--text);
+  }
+
+  .pipe-stage .stage-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .pipe-arrow {
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    color: var(--accent);
+    font-size: 20px;
+    font-weight: 300;
+  }
+
+  /* Code block */
+  .code-block {
+    background: var(--code-bg);
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    margin: 1.25rem 0;
+    overflow-x: auto;
+    font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--code-text);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    position: relative;
+  }
+
+  .code-block .lang-label {
+    position: absolute;
+    top: 0.6rem; right: 0.9rem;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.25);
+  }
+
+  .code-block .kw  { color: #c678dd; }
+  .code-block .fn  { color: #61afef; }
+  .code-block .str { color: #98c379; }
+  .code-block .cmt { color: #5c6370; font-style: italic; }
+  .code-block .num { color: #d19a66; }
+
+  /* Metrics cards */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    text-align: center;
+  }
+
+  .metric-card .mc-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.4rem; }
+  .metric-card .mc-value { font-size: 2rem; font-weight: 700; line-height: 1; }
+  .metric-card .mc-sub { font-size: 11px; color: var(--text-muted); margin-top: 0.3rem; }
+  .mc-blue  { color: var(--accent); }
+  .mc-green { color: var(--success); }
+  .mc-amber { color: var(--warning); }
+
+  /* Feature importance inline bar */
+  .feat-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.6rem;
+    font-size: 13px;
+  }
+
+  .feat-name { width: 180px; flex-shrink: 0; color: var(--text); font-weight: 500; }
+  .feat-bar-wrap { flex: 1; background: #e2e8f0; border-radius: 999px; height: 10px; overflow: hidden; }
+  .feat-bar { height: 100%; border-radius: 999px; background: linear-gradient(to right, var(--accent), #60a5fa); transition: width 0.6s; }
+  .feat-pct { width: 45px; text-align: right; color: var(--text-muted); font-size: 12px; }
+
+  /* Limitations grid */
+  .limit-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+    margin: 1.25rem 0;
+  }
+
+  .limit-card {
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 10px;
+    padding: 1rem 1.1rem;
+  }
+
+  .limit-card .lc-num {
+    font-size: 22px;
+    font-weight: 800;
+    color: #ea580c;
+    opacity: 0.25;
+    line-height: 1;
+    margin-bottom: 0.4rem;
+  }
+
+  .limit-card .lc-title { font-size: 13px; font-weight: 700; color: #9a3412; margin-bottom: 0.35rem; }
+  .limit-card .lc-body  { font-size: 12.5px; color: #7c2d12; line-height: 1.5; }
+
+  /* Step list */
+  .step-list { counter-reset: step; list-style: none; padding: 0; margin: 1rem 0; }
+  .step-list li {
+    counter-increment: step;
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.1rem;
+    align-items: flex-start;
+  }
+  .step-list li::before {
+    content: counter(step);
+    min-width: 28px; height: 28px;
+    background: var(--accent);
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+  }
+  .step-list li p { margin: 0; font-size: 14px; }
+  .step-list li strong { color: var(--text); }
+
+  /* Footer */
+  .footer {
+    background: #0f172a;
+    color: rgba(255,255,255,0.4);
+    text-align: center;
+    padding: 1.5rem 2rem;
+    font-size: 12px;
+  }
+
+  code {
+    background: #f1f5f9;
+    color: var(--accent-dark);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-family: "Cascadia Code", "Fira Code", monospace;
+    font-size: 0.88em;
+    border: 1px solid #e2e8f0;
+  }
+
+  @media (max-width: 900px) {
+    #sidebar { display: none; }
+    #content { margin-left: 0; }
+    .hero, .section { padding: 2rem 1.5rem; }
+    .pipe-arrow { display: none; }
+    .pipeline { gap: 0.75rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ────────────────────── Sidebar ────────────────────── -->
+<aside id="sidebar">
+  <div class="sidebar-header">
+    <div class="tag">Implementation Report</div>
+    <h2>Physiological Stress Classification Pipeline</h2>
+  </div>
+  <nav>
+    <a href="#overview"><span class="num">01</span> Project Overview</a>
+    <a href="#data"><span class="num">02</span> Data Sources</a>
+    <a href="#architecture"><span class="num">03</span> Pipeline Architecture</a>
+    <a href="#stage1"><span class="num">04</span> Stage 1 — Survey Labels</a>
+    <a href="#stage2"><span class="num">05</span> Stage 2 — Time Alignment</a>
+    <a href="#features"><span class="num">06</span> Feature Set</a>
+    <a href="#preprocessing"><span class="num">07</span> Preprocessing</a>
+    <a href="#crossval"><span class="num">08</span> Cross-Validation</a>
+    <a href="#models"><span class="num">09</span> Models &amp; Tuning</a>
+    <a href="#results"><span class="num">10</span> Results</a>
+    <a href="#limitations"><span class="num">11</span> Limitations</a>
+    <a href="#howtorun"><span class="num">12</span> How to Run</a>
+    <a href="#summary"><span class="num">13</span> Summary</a>
+  </nav>
+</aside>
+
+<!-- ────────────────────── Main ─────────────────────────── -->
+<main id="content">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-badge">Technical Report</div>
+    <h1>Physiological Stress Classification Pipeline</h1>
+    <p>End-to-end design and implementation of a machine learning system for classifying momentary stress states from wrist-worn physiological sensors, using EMA survey data as ground truth.</p>
+    <div class="hero-meta">
+      <div class="item"><span class="label">Project</span><span class="value">Workplace Lighting EMA Study</span></div>
+      <div class="item"><span class="label">Author</span><span class="value">Shounak Das</span></div>
+      <div class="item"><span class="label">Date</span><span class="value">May 4, 2026</span></div>
+      <div class="item"><span class="label">Institution</span><span class="value">USC</span></div>
+    </div>
+  </div>
+
+  <div class="callout info" style="margin: 2rem 4rem 0; border-radius:10px;">
+    <strong>How to Read This Report —</strong> This document describes the full design and implementation of the pipeline for a technical reader who has not seen the source code. Sections progress from data collection through model design, evaluation, and known limitations. Each section stands on its own, but reading in order gives the clearest picture.
+  </div>
+
+  <!-- ── Section 1 ───────────────────────────────────────── -->
+  <section class="section" id="overview">
+    <div class="section-label">Section 01</div>
+    <h2><span class="icon">🎯</span>Project Overview</h2>
+
+    <p>This pipeline was built for a study conducted at USC in which participants wore a wrist sensor while periodically answering short surveys (Ecological Momentary Assessments, or EMAs) about their psychological state. The goal is to train a classifier that can infer a participant's stress state from physiological signals alone — without needing them to fill out a survey.</p>
+
+    <p>Stress is modeled along two independent dimensions: <strong>Opportunity</strong> (perceived challenge or potential upside) and <strong>Pressure</strong> (perceived demand or threat). Combining these two dimensions yields four theoretically distinct states:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>Pressure LOW</th><th>Pressure HIGH</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Opportunity HIGH</strong></td><td><span class="badge badge-eustress">Eustress</span></td><td><span class="badge badge-mixed">Mixed</span></td></tr>
+          <tr><td><strong>Opportunity LOW</strong></td><td><span class="badge badge-relaxed">Relaxed</span></td><td><span class="badge badge-distress">Distress</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      In this dataset, only three states are represented: <strong>Relaxed</strong>, <strong>Distress</strong>, and <strong>Mixed</strong>. No participant reported a pure Eustress state during the recording session, so the classifier is trained on three classes only.
+    </div>
+  </section>
+
+  <!-- ── Section 2 ───────────────────────────────────────── -->
+  <section class="section" id="data">
+    <div class="section-label">Section 02</div>
+    <h2><span class="icon">📡</span>Data Sources</h2>
+
+    <p>The pipeline draws on two independent data streams that must be carefully aligned:</p>
+
+    <h3>Wrist Sensor Data</h3>
+    <p>A wrist-worn optical sensor collected photoplethysmography (PPG), heart rate, heart rate variability, and accelerometer signals at 24 Hz. Crucially, the sensor operated on a <strong>duty cycle — 10 seconds on, 20 seconds off</strong> — to conserve battery. Signals were pre-processed externally into a feature matrix of 861 rows and 16 physiological features per row.</p>
+
+    <h3>EMA Survey Data</h3>
+    <p>Participants answered 8 surveys via Qualtrics over the course of the session. Each survey asked them to rate Opportunity and Pressure on a 6-point Likert scale (text responses such as "Slightly agree"). Survey timestamps are wall-clock times; sensor timestamps are seconds elapsed since the sensor powered on.</p>
+
+    <div class="callout info">
+      <strong>Key Challenge —</strong> Bridging two incompatible time systems (absolute wall-clock vs. relative elapsed seconds) is the central data engineering challenge of the pipeline.
+    </div>
+
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="mc-label">Feature Rows</div>
+        <div class="mc-value mc-blue">861</div>
+        <div class="mc-sub">After duty-cycle correction</div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label">Features per Row</div>
+        <div class="mc-value mc-blue">16</div>
+        <div class="mc-sub">Physiological signals</div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label">EMA Surveys</div>
+        <div class="mc-value mc-green">8</div>
+        <div class="mc-sub">Over ~3 hours</div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label">Session Duration</div>
+        <div class="mc-value mc-amber">3h 2m</div>
+        <div class="mc-sub">14:33 – 17:35</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Section 3 ───────────────────────────────────────── -->
+  <section class="section" id="architecture">
+    <div class="section-label">Section 03</div>
+    <h2><span class="icon">🏗️</span>Pipeline Architecture</h2>
+
+    <p>The full pipeline executes in four sequential stages:</p>
+
+    <div class="pipeline">
+      <div class="pipe-stage">
+        <div class="stage-num">Stage 1</div>
+        <div class="stage-name">classify_survey.py</div>
+        <div class="stage-desc">Qualtrics CSV → labelled survey CSV with stress class per response</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-stage">
+        <div class="stage-num">Stage 2</div>
+        <div class="stage-name">merge_labels.py</div>
+        <div class="stage-desc">Duty-cycle correction + time alignment → features_labeled.csv</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-stage">
+        <div class="stage-num">Stage 3</div>
+        <div class="stage-name">tune.py (optional)</div>
+        <div class="stage-desc">RandomizedSearchCV hyperparameter optimization</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-stage">
+        <div class="stage-num">Stage 4</div>
+        <div class="stage-name">train.py</div>
+        <div class="stage-desc">5-fold grouped CV → per-fold metrics + feature importances</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Section 4 ───────────────────────────────────────── -->
+  <section class="section" id="stage1">
+    <div class="section-label">Section 04</div>
+    <h2><span class="icon">📋</span>Stage 1 — Survey Label Classification</h2>
+
+    <p><strong>Input:</strong> Raw Qualtrics CSV export. The first two rows are Qualtrics metadata headers; the pipeline skips them and reads actual responses from the third row onward.</p>
+
+    <h3>Label Assignment Rules</h3>
+    <p>Each response contains free-text answers for Opportunity and Pressure. These are mapped to a numeric score from 1 to 6. A threshold rule then assigns the stress label:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Opportunity</th><th>Pressure</th><th>Label</th></tr></thead>
+        <tbody>
+          <tr><td>Score 4–6 (HIGH)</td><td>Score 1–3 (LOW)</td><td><span class="badge badge-eustress">Eustress</span></td></tr>
+          <tr><td>Score 1–3 (LOW)</td><td>Score 4–6 (HIGH)</td><td><span class="badge badge-distress">Distress</span></td></tr>
+          <tr><td>Score 1–3 (LOW)</td><td>Score 1–3 (LOW)</td><td><span class="badge badge-relaxed">Relaxed</span></td></tr>
+          <tr><td>Score 4–6 (HIGH)</td><td>Score 4–6 (HIGH)</td><td><span class="badge badge-mixed">Mixed</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Session Summary</h3>
+    <p>8 surveys were collected over approximately 3 hours (14:33 to 17:35). Labels were: 3 × Relaxed, 1 × Distress, 3 × Mixed, 1 × Eustress.</p>
+
+    <p><strong>Output:</strong> A CSV with one row per survey response, containing start/end timestamps, raw text responses, numeric scores, and the assigned label.</p>
+  </section>
+
+  <!-- ── Section 5 ───────────────────────────────────────── -->
+  <section class="section" id="stage2">
+    <div class="section-label">Section 05</div>
+    <h2><span class="icon">⏱️</span>Stage 2 — Label Merging and Time Alignment</h2>
+
+    <p>This is the most technically involved stage. It resolves the mismatch between two incompatible time systems and propagates survey labels onto every sensor feature row.</p>
+
+    <h3>5a. Time Synchronization</h3>
+    <p>Survey timestamps are absolute wall-clock times (e.g., <code>14:33:12</code>). Sensor timestamps are seconds elapsed since power-on. To align them, the pipeline designates the <strong>first survey's start time as t = 0</strong> and converts all survey timestamps to seconds relative to that origin. Only the time-of-day component is used (not the date), making the script safe for multi-day sessions.</p>
+
+    <h3>5b. Duty-Cycle Correction</h3>
+    <div class="callout">
+      <strong>Critical correction — easy to overlook.</strong> Because the sensor was off for 20 seconds of every 30-second cycle, raw feature timestamps do not reflect real elapsed time. Without correction, every sensor measurement would be placed far too early in the session timeline and matched to the wrong survey label.
+    </div>
+    <p>The fix adds <code>block_index × 20 seconds</code> to every timestamp, where block index is assigned by sorting the unique window values:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Raw Window</th><th>Corrected Window</th></tr></thead>
+        <tbody>
+          <tr><td>20.0 – 30.0 s</td><td>40.0 – 50.0 s</td></tr>
+          <tr><td>30.0 – 40.0 s</td><td>70.0 – 80.0 s</td></tr>
+          <tr><td>60.0 – 70.0 s</td><td>160.0 – 170.0 s</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>After correction, the sensor timeline spans <code>t = 12s</code> to <code>t = 8,598s</code>, consistent with 287 recording blocks × 30 seconds per cycle = 8,610 seconds of real elapsed time.</p>
+
+    <h3>5c. Label Propagation (Forward-Fill)</h3>
+    <ul style="padding-left:1.5rem; margin-bottom:1rem; color:#334155; font-size:14px; line-height:2;">
+      <li>Feature windows within a survey's [start, end] interval → that survey's label.</li>
+      <li>Feature windows in the <strong>gap between surveys</strong> → the <em>next</em> survey's label (forward-fill).</li>
+      <li>Feature windows after the last survey → <code>Unknown</code>, excluded from training.</li>
+    </ul>
+
+    <h3>5d. Survey Coverage and Label Distribution</h3>
+    <p>The sensor recording (8,610s) ended before the survey session concluded (10,916s). Surveys 5–8 fall outside the recording window, but their labels reach backward through the gaps.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Survey</th><th>Label</th><th>Session Time</th><th>Feature Data Available</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><span class="badge badge-relaxed">Relaxed</span></td><td>t = 0 – 28s</td><td>✅ Yes</td></tr>
+          <tr><td>2</td><td><span class="badge badge-relaxed">Relaxed</span></td><td>t = 884 – 912s</td><td>✅ Yes</td></tr>
+          <tr><td>3</td><td><span class="badge badge-distress">Distress</span></td><td>t = 2,840 – 2,870s</td><td>✅ Yes</td></tr>
+          <tr><td>4</td><td><span class="badge badge-relaxed">Relaxed</span></td><td>t = 3,396 – 3,416s</td><td>✅ Yes</td></tr>
+          <tr><td>5</td><td><span class="badge badge-mixed">Mixed</span></td><td>t = 9,768 – 9,801s</td><td>❌ No</td></tr>
+          <tr><td>6</td><td><span class="badge badge-mixed">Mixed</span></td><td>t = 10,109 – 10,137s</td><td>❌ No</td></tr>
+          <tr><td>7</td><td><span class="badge badge-eustress">Eustress</span></td><td>t = 10,576 – 10,598s</td><td>❌ No</td></tr>
+          <tr><td>8</td><td><span class="badge badge-mixed">Mixed</span></td><td>t = 10,898 – 10,916s</td><td>❌ No</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Because Survey 5 (Mixed) is the next survey after the recording ends, its label forward-fills the entire 5,180-second gap between Survey 4 and the end of the recording, resulting in a substantially imbalanced label distribution:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Label</th><th>Rows</th><th>Percentage</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-mixed">Mixed</span></td><td>519</td><td>60.3%</td></tr>
+          <tr><td><span class="badge badge-distress">Distress</span></td><td>197</td><td>22.9%</td></tr>
+          <tr><td><span class="badge badge-relaxed">Relaxed</span></td><td>145</td><td>16.8%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── Section 6 ───────────────────────────────────────── -->
+  <section class="section" id="features">
+    <div class="section-label">Section 06</div>
+    <h2><span class="icon">🔬</span>Feature Set</h2>
+
+    <p>Each row represents a 3-second physiological sub-window nested within a 10-second recording block. The 16 input features span four physiological domains:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Domain</th><th>Features</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Heart Rate</strong></td><td><code>HR_LED1</code>, <code>HR_LED1_Clean</code></td></tr>
+          <tr><td><strong>Heart Rate Variability</strong></td><td><code>HRV_LED1</code>, <code>HRV_LED1_Clean</code></td></tr>
+          <tr><td><strong>PPG Amplitude — LED1</strong></td><td><code>PA_LED1</code>, <code>PA_LED1_Clean</code></td></tr>
+          <tr><td><strong>PPG Amplitude — LED2</strong></td><td><code>PA_LED2</code>, <code>PA_LED2_Clean</code></td></tr>
+          <tr><td><strong>PPG Amplitude Velocity</strong></td><td><code>PAV_LED1</code>, <code>PAV_LED2</code></td></tr>
+          <tr><td><strong>Cross-Channel Derived</strong></td><td><code>PA_LED1_minus_LED2</code>, <code>PA_LED1_div_LED2</code></td></tr>
+          <tr><td><strong>Motion (Accelerometer)</strong></td><td><code>AccX_std</code>, <code>AccY_std</code>, <code>AccZ_std</code></td></tr>
+          <tr><td><strong>Skin Temperature</strong></td><td><code>Temp_Avg</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Both raw and cleaned variants are retained for HR, HRV, and PA features. The cleaned variants use signal processing to remove artifacts; retaining both gives the model the option to learn from either or use their difference implicitly.</p>
+  </section>
+
+  <!-- ── Section 7 ───────────────────────────────────────── -->
+  <section class="section" id="preprocessing">
+    <div class="section-label">Section 07</div>
+    <h2><span class="icon">⚙️</span>Preprocessing</h2>
+
+    <ol class="step-list">
+      <li><p><strong>Artifact Handling:</strong> Infinite values (from division by zero in ratio features) are replaced with NaN. All remaining NaN values are imputed with the column median — a robust choice unaffected by extreme outliers from sensor noise.</p></li>
+      <li><p><strong>Feature Scaling:</strong> A <code>StandardScaler</code> (zero mean, unit variance) is applied to normalize features for the SVM. The scaler is fit <strong>only on the training portion of each cross-validation fold</strong> and then applied to the test portion. Fitting on the full dataset before splitting would leak test-set statistics into training — a subtle but consequential form of data leakage. The Random Forest skips scaling entirely, as tree-based models are scale-invariant.</p></li>
+      <li><p><strong>Group and Label Extraction:</strong> Index columns (window identifiers and timestamps) are separated from model inputs. The <code>Window_10s</code> column is retained as a grouping key for cross-validation.</p></li>
+    </ol>
+  </section>
+
+  <!-- ── Section 8 ───────────────────────────────────────── -->
+  <section class="section" id="crossval">
+    <div class="section-label">Section 08</div>
+    <h2><span class="icon">🔀</span>Cross-Validation Strategy</h2>
+
+    <p>The pipeline uses <strong>Stratified Group K-Fold</strong> with 5 folds. This design simultaneously satisfies two requirements that are in tension:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Requirement</th><th>Why It Matters</th><th>Solution</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Group Constraint</strong></td>
+            <td>Each 10-second window contains 3 correlated sub-windows. If split across folds, the model would see overlapping signal in both train and test — an optimistic evaluation.</td>
+            <td>All rows sharing the same <code>Window_10s</code> are always in the same fold.</td>
+          </tr>
+          <tr>
+            <td><strong>Stratification</strong></td>
+            <td>With 287 unique windows across 5 folds (~57/fold), without stratification, a fold could be dominated by a single class, making metrics unstable.</td>
+            <td>Each fold preserves the 60/23/17 class ratio.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── Section 9 ───────────────────────────────────────── -->
+  <section class="section" id="models">
+    <div class="section-label">Section 09</div>
+    <h2><span class="icon">🤖</span>Models and Hyperparameter Tuning</h2>
+
+    <p>Four classifiers were evaluated. All use class balancing strategies to counteract the 60/23/17 label imbalance.</p>
+
+    <h3>Support Vector Machine (SVM)</h3>
+    <p>Uses an RBF (radial basis function) kernel. Probability outputs are enabled via Platt scaling. Key hyperparameters: <code>C</code> (regularization strength) and <code>gamma</code> (kernel bandwidth). Requires feature scaling.</p>
+
+    <h3>Random Forest (RF)</h3>
+    <p>A bagged ensemble of independently grown decision trees. Each tree votes on the final prediction. Key hyperparameters govern tree depth, minimum samples per split/leaf, number of trees, and feature sampling strategy. Scale-invariant; no feature scaling required.</p>
+
+    <h3>XGBoost</h3>
+    <p>A gradient-boosted tree ensemble. Unlike RF (parallel bagging), XGBoost trains trees sequentially — each tree corrects the residual errors of the previous ensemble, making it more sample-efficient on small datasets. Key hyperparameters: tree depth, learning rate, row/column subsampling, and L1/L2 regularization. Scale-invariant. Per-sample class weights are computed inside <code>fit()</code> via <code>compute_sample_weight("balanced")</code> because XGBoost's multiclass objective has no native <code>class_weight</code> parameter.</p>
+
+    <h3>1D Convolutional Neural Network (CNN_1D)</h3>
+    <p>A deep learning model that treats the 16-feature vector as a 1-D sequence and learns local feature interaction patterns via convolutional filters. The architecture is:</p>
+    <div class="code-block">
+      <span class="lang-label">architecture</span>
+      Input &nbsp;&nbsp;&nbsp;(16 features, 1 channel)<br>
+      Conv1D(32, kernel=3, padding='same') → BatchNorm → ReLU<br>
+      MaxPooling1D(2) → Dropout(0.30)<br>
+      Conv1D(64, kernel=3, padding='same') → BatchNorm → ReLU<br>
+      GlobalAveragePooling1D → Dropout(0.30)<br>
+      Dense(128) + ReLU + Dropout(0.40) &nbsp;&nbsp;&nbsp;<span class="cmt">← FC layer 1</span><br>
+      Dense(64) &nbsp;+ ReLU + Dropout(0.30) &nbsp;&nbsp;&nbsp;<span class="cmt">← FC layer 2</span><br>
+      Dense(32) &nbsp;+ ReLU + Dropout(0.20) &nbsp;&nbsp;&nbsp;<span class="cmt">← FC layer 3</span><br>
+      Dense(n_classes) + Softmax &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cmt">← FC layer 4 (output)</span>
+    </div>
+    <p>Training uses Adam (lr=1×10⁻³), sparse categorical cross-entropy, and per-class weights from <code>compute_class_weight("balanced")</code>. EarlyStopping monitors validation loss (patience=25, restore best weights); ReduceLROnPlateau halves the lr after 8 stagnant epochs. Requires feature scaling.</p>
+
+    <h3>Tuning Approach</h3>
+    <p>SVM, RF, and XGBoost were tuned using <code>RandomizedSearchCV</code> with 60 iterations per model, scored by <strong>macro F1</strong>. CNN hyperparameters were tuned via a dedicated random-search function in <code>tune.py</code> that tries 15 random draws from the CNN search space with the same StratifiedGroupKFold CV.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Parameter</th><th>SVM Tuned</th><th>RF Tuned</th><th>XGB Tuned</th><th>CNN Tuned</th></tr></thead>
+        <tbody>
+          <tr><td>C</td><td><strong>6.55</strong></td><td>—</td><td>—</td><td>—</td></tr>
+          <tr><td>gamma (SVM)</td><td><strong>0.30</strong></td><td>—</td><td>—</td><td>—</td></tr>
+          <tr><td>n_estimators</td><td>—</td><td><strong>406</strong></td><td><strong>300</strong></td><td>—</td></tr>
+          <tr><td>max_depth</td><td>—</td><td><strong>15</strong></td><td><strong>4</strong></td><td>—</td></tr>
+          <tr><td>learning_rate</td><td>—</td><td>—</td><td><strong>0.05</strong></td><td><strong>1×10⁻³</strong></td></tr>
+          <tr><td>subsample</td><td>—</td><td>—</td><td><strong>0.80</strong></td><td>—</td></tr>
+          <tr><td>colsample_bytree</td><td>—</td><td>—</td><td><strong>0.80</strong></td><td>—</td></tr>
+          <tr><td>min_child_weight</td><td>—</td><td>—</td><td><strong>3</strong></td><td>—</td></tr>
+          <tr><td>gamma (XGB) / reg_α / reg_λ</td><td>—</td><td>—</td><td><strong>0.10 / 0.10 / 1.0</strong></td><td>—</td></tr>
+          <tr><td>filters (conv 1/2)</td><td>—</td><td>—</td><td>—</td><td><strong>32 / 64</strong></td></tr>
+          <tr><td>dense units (FC 1/2/3)</td><td>—</td><td>—</td><td>—</td><td><strong>128 / 64 / 32</strong></td></tr>
+          <tr><td>conv / dense dropout</td><td>—</td><td>—</td><td>—</td><td><strong>0.30 / 0.40</strong></td></tr>
+          <tr><td>batch size</td><td>—</td><td>—</td><td>—</td><td><strong>32</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── Section 10 ──────────────────────────────────────── -->
+  <section class="section" id="results">
+    <div class="section-label">Section 10</div>
+    <h2><span class="icon">📊</span>Results</h2>
+
+    <h3>10a. Overall Performance</h3>
+    <p>The Random Forest leads across all metrics, with XGBoost a close second. The SVM trails both tree ensembles, and the 1D CNN underperforms on this small tabular dataset as expected.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Model</th><th>Accuracy</th><th>F1 Macro</th><th>F1 Weighted</th></tr></thead>
+        <tbody>
+          <tr><td><strong>SVM</strong></td><td>0.663 ± 0.035</td><td>0.555 ± 0.052</td><td>0.655 ± 0.038</td></tr>
+          <tr style="background:#f0fdf4;"><td><strong>Random Forest ★</strong></td><td><strong>0.759 ± 0.032</strong></td><td><strong>0.701 ± 0.042</strong></td><td><strong>0.760 ± 0.033</strong></td></tr>
+          <tr><td><strong>XGBoost</strong></td><td>0.745 ± 0.042</td><td>0.676 ± 0.060</td><td>0.744 ± 0.042</td></tr>
+          <tr><td><strong>CNN_1D</strong></td><td>0.523 ± 0.025</td><td>0.497 ± 0.024</td><td>0.556 ± 0.022</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout success">
+      RF edges out XGBoost by 1.4 pp accuracy and 2.5 pp F1 Macro. XGBoost's higher fold variance (±0.060 vs ±0.042) reflects the small dataset limiting gradient boosting's error-correction advantage. The CNN achieves 0.497 macro F1 — below the SVM — as expected for a convolutional model on unordered tabular features with only 861 samples.
+    </div>
+
+    <h3>10b. Per-Class Performance</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Class</th><th>SVM F1</th><th>RF F1</th><th>XGB F1</th><th>CNN F1</th><th>Support</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-mixed">Mixed</span></td><td>0.80</td><td>0.85</td><td>0.85</td><td>0.65</td><td>519</td></tr>
+          <tr><td><span class="badge badge-distress">Distress</span></td><td>0.44</td><td>0.59</td><td>0.56</td><td>0.41</td><td>197</td></tr>
+          <tr><td><span class="badge badge-relaxed">Relaxed</span></td><td>0.43</td><td>0.67</td><td>0.63</td><td>0.44</td><td>145</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>XGBoost matches RF on Mixed F1 (both 0.85) and comes within 0.04 F1 on both minority classes, making it the strongest alternative to RF. The CNN over-predicts minority classes (high recall, low precision on Distress/Relaxed) at the cost of Mixed recall (0.48).</p>
+
+    <h3>10c. Feature Importances (Random Forest)</h3>
+    <p>Skin temperature is the single most informative feature, followed by PPG amplitude from both LED channels:</p>
+
+    <div style="margin: 1.25rem 0;">
+      <div class="feat-row"><span class="feat-name">Temp_Avg</span><div class="feat-bar-wrap"><div class="feat-bar" style="width:100%"></div></div><span class="feat-pct">22.3%</span></div>
+      <div class="feat-row"><span class="feat-name">PA_LED1_Clean</span><div class="feat-bar-wrap"><div class="feat-bar" style="width:45.3%"></div></div><span class="feat-pct">10.1%</span></div>
+      <div class="feat-row"><span class="feat-name">PA_LED2_Clean</span><div class="feat-bar-wrap"><div class="feat-bar" style="width:35.5%"></div></div><span class="feat-pct">7.9%</span></div>
+      <div class="feat-row"><span class="feat-name">AccX_std</span><div class="feat-bar-wrap"><div class="feat-bar" style="width:35.5%"></div></div><span class="feat-pct">7.9%</span></div>
+      <div class="feat-row"><span class="feat-name">PA_LED1</span><div class="feat-bar-wrap"><div class="feat-bar" style="width:30.4%"></div></div><span class="feat-pct">6.8%</span></div>
+      <div class="feat-row"><span class="feat-name">AccY_std</span><div class="feat-bar-wrap"><div class="feat-bar" style="width:29.6%"></div></div><span class="feat-pct">6.6%</span></div>
+      <div class="feat-row"><span class="feat-name">AccZ_std</span><div class="feat-bar-wrap"><div class="feat-bar" style="width:26.8%"></div></div><span class="feat-pct">6.0%</span></div>
+      <div class="feat-row"><span class="feat-name">PA_LED2</span><div class="feat-bar-wrap"><div class="feat-bar" style="width:24.4%"></div></div><span class="feat-pct">5.4%</span></div>
+    </div>
+
+    <p>Skin temperature dominates at roughly twice the importance of any other feature. This is physiologically plausible — skin temperature changes with stress-induced vasoconstriction and is a relatively stable, low-noise signal compared to instantaneous heart rate.</p>
+  </section>
+
+  <!-- ── Section 11 ──────────────────────────────────────── -->
+  <section class="section" id="limitations">
+    <div class="section-label">Section 11</div>
+    <h2><span class="icon">⚠️</span>Limitations</h2>
+
+    <div class="limit-grid">
+      <div class="limit-card">
+        <div class="lc-num">01</div>
+        <div class="lc-title">Missing Eustress Class</div>
+        <div class="lc-body">The four-quadrant stress model has no Eustress data in this session. The deployed classifier can only predict three states and will misclassify any true Eustress response.</div>
+      </div>
+      <div class="limit-card">
+        <div class="lc-num">02</div>
+        <div class="lc-title">Mixed Label Quality</div>
+        <div class="lc-body">All 519 Mixed-labeled rows come from a single 5,180-second gap forward-filled with Survey 5's label. The participant was not actively reporting Mixed stress during this window — the label is inferred, not directly measured.</div>
+      </div>
+      <div class="limit-card">
+        <div class="lc-num">03</div>
+        <div class="lc-title">Class Imbalance</div>
+        <div class="lc-body">Despite balanced class weighting, the 60/23/17 distribution limits how well the model can learn from Distress and Relaxed examples. Additional data collection would help substantially.</div>
+      </div>
+      <div class="limit-card">
+        <div class="lc-num">04</div>
+        <div class="lc-title">Small Dataset — especially for CNN</div>
+        <div class="lc-body">861 rows across three classes is a limited training set. CV variance (±0.04 on macro F1) is nontrivial. This limitation is most acute for the CNN: convolutional networks need thousands of samples to reliably learn spatial filters; with only 861 rows the CNN underfits compared to tree-based ensembles.</div>
+      </div>
+      <div class="limit-card">
+        <div class="lc-num">05</div>
+        <div class="lc-title">Feature Ordering for CNN</div>
+        <div class="lc-body">The 16 physiological features have no intrinsic spatial or temporal ordering within a single row. The 1D CNN treats adjacent features as "neighboring timesteps," but that adjacency is an artifact of engineering order, not a physical relationship. Models that treat each feature independently (RF, SVM) are architecturally better matched to this tabular input.</div>
+      </div>
+      <div class="limit-card">
+        <div class="lc-num">06</div>
+        <div class="lc-title">Single Participant</div>
+        <div class="lc-body">No claim of generalizability can be made. A model trained on one person's physiology in one context may not transfer to other individuals or environments.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Section 12 ──────────────────────────────────────── -->
+  <section class="section" id="howtorun">
+    <div class="section-label">Section 12</div>
+    <h2><span class="icon">▶️</span>How to Run the Pipeline</h2>
+
+    <h3>Stage 1: Classify Survey Responses</h3>
+    <div class="code-block">
+      <span class="lang-label">bash</span>
+      <span class="kw">python</span> -m src.data.classify_survey \<br>
+      &nbsp;&nbsp;--input_dir data/survey/ \<br>
+      &nbsp;&nbsp;--output_dir data/survey/
+    </div>
+
+    <h3>Stage 2: Align Timestamps and Merge Labels</h3>
+    <div class="code-block">
+      <span class="lang-label">bash</span>
+      <span class="kw">python</span> -m src.data.merge_labels \<br>
+      &nbsp;&nbsp;--features data/features/features_output_24hz.csv \<br>
+      &nbsp;&nbsp;--labels data/survey/Lighting_EMA_Main_April_6_2026_14.52_labelled.csv \<br>
+      &nbsp;&nbsp;--output data/features/features_labeled.csv
+    </div>
+
+    <h3>Stage 3 (optional): Re-tune Hyperparameters</h3>
+    <div class="code-block">
+      <span class="lang-label">bash</span>
+      <span class="kw">python</span> tune.py --data data/features/features_labeled.csv
+    </div>
+
+    <h3>Stage 4: Train and Evaluate</h3>
+    <div class="code-block">
+      <span class="lang-label">bash</span>
+      <span class="kw">python</span> train.py --data data/features/features_labeled.csv
+    </div>
+
+    <div class="callout info" style="margin-top:1.25rem;">
+      <strong>Output files</strong> are written to <code>results/</code>: per-fold metrics in <code>fold_results.csv</code>, tuned parameters in <code>best_params.txt</code>, and RF feature importances in <code>RandomForest_feature_importances.csv</code>.
+    </div>
+  </section>
+
+  <!-- ── Section 13 ──────────────────────────────────────── -->
+  <section class="section" id="summary">
+    <div class="section-label">Section 13</div>
+    <h2><span class="icon">✅</span>Summary</h2>
+
+    <p>The pipeline classifies three momentary stress states (Relaxed, Distress, Mixed) from wrist-worn physiological sensor data using four models. The Random Forest is the best performer; XGBoost is a strong second; the 1D CNN underperforms on this small tabular dataset as expected.</p>
+
+    <div class="metrics-grid" style="margin:1.5rem 0;">
+      <div class="metric-card">
+        <div class="mc-label">RF Accuracy</div>
+        <div class="mc-value mc-green">75.9%</div>
+        <div class="mc-sub">5-fold grouped CV</div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label">RF F1 Macro</div>
+        <div class="mc-value mc-green">0.701</div>
+        <div class="mc-sub">Primary metric</div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label">XGB Accuracy</div>
+        <div class="mc-value mc-blue">74.5%</div>
+        <div class="mc-sub">5-fold grouped CV</div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label">XGB F1 Macro</div>
+        <div class="mc-value mc-blue">0.676</div>
+        <div class="mc-sub">Close second to RF</div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label">SVM Accuracy</div>
+        <div class="mc-value mc-amber">66.3%</div>
+        <div class="mc-sub">5-fold grouped CV</div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label">CNN F1 Macro</div>
+        <div class="mc-value" style="color:#ef4444;">0.497</div>
+        <div class="mc-sub">Tabular data limitation</div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label">Top Feature</div>
+        <div class="mc-value mc-blue" style="font-size:1.1rem; padding-top:0.3rem;">Temp_Avg</div>
+        <div class="mc-sub">22.3% RF importance</div>
+      </div>
+    </div>
+
+    <p>The most technically sensitive parts of the implementation are the <strong>duty-cycle timestamp correction</strong> in Stage 2 (required for correct time alignment) and the <strong>grouped cross-validation strategy</strong> (which prevents data leakage from correlated sub-windows).</p>
+
+    <p>The primary path to improving all models — and especially XGBoost and the CNN — is additional data: more participants, more sessions, and balanced representation across all four stress quadrants. With thousands of samples per class, XGBoost's sequential error-correction and the CNN's nonlinear capacity could both surpass the Random Forest.</p>
+  </section>
+
+  <div class="footer">
+    Physiological Stress Classification Pipeline — Shounak Das, USC, 2026
+  </div>
+</main>
+
+<script>
+  // Highlight active sidebar link on scroll
+  const sections = document.querySelectorAll('section[id]');
+  const links = document.querySelectorAll('#sidebar nav a');
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`#sidebar nav a[href="#${e.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-30% 0px -60% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
