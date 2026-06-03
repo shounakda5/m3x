@@ -8,9 +8,7 @@ __pycache__/
 email_thread_artifacts/
 
 # Trained model binaries — large, regenerable via train.py
-*.pkl
 *.h5
-*.tflite
 *.h
 
 # IDE / OS
