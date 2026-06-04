@@ -10,9 +10,13 @@ FEATURES_DIR = DATA_DIR / "features"
 RAW_DIR      = DATA_DIR / "raw"
 RESULTS_DIR  = ROOT / "results"
 
-LABELED_FEATURES_FILE = FEATURES_DIR / "features_labeled_new.csv"
+LABELED_FEATURES_FILE    = FEATURES_DIR / "features_labeled.csv"
+LABELED_FEATURES_MF_FILE = FEATURES_DIR / "features_labeled_mf.csv"
+
 RAW_SESSION1_FILE     = RAW_DIR / "session1_raw.csv"
 RAW_SESSION2_FILE     = RAW_DIR / "session2_raw.csv"
+RAW_MF_SESSION1_FILE  = RAW_DIR / "session1_raw_mf.xlsx"
+RAW_MF_SESSION2_FILE  = RAW_DIR / "session2_raw_mf.xlsx"
 
 # ---------------------------------------------------------------------------
 # Column roles

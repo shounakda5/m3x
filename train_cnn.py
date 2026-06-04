@@ -1,26 +1,30 @@
 """
-train_cnn.py — Train the 1D CNN on raw M3X sensor data.
+train_cnn.py -- Train the 1D CNN on raw M3X sensor data.
 
-The CNN operates on raw time-series windows (not on the engineered features
-used by SVM / RF / XGBoost).  Each window is 112 samples × 9 channels
-(≈ 4.5 s at 25 Hz).  Two windows are extracted per duty-cycle burst,
-mirroring the two sub-windows of the feature-based pipeline.
+Two dataset variants are supported via --mf:
+
+  Default (unfiltered):
+    Reads plain raw CSVs (session1_raw.csv / session2_raw.csv), detects
+    duty-cycle bursts from timestamp gaps, and extracts 2 windows per burst.
+
+  Motion-filtered (--mf):
+    Reads pre-segmented MATLAB Excel files (session1_raw_mf.xlsx / session2_raw_mf.xlsx)
+    where burst and sub-window boundaries are already annotated.
+
+Both modes produce 112-sample x 9-channel windows and use the same CV and
+scaling strategy.
 
 Usage
 -----
     python train_cnn.py
     python train_cnn.py --output_dir results/cnn_raw_baseline
+    python train_cnn.py --mf
+    python train_cnn.py --mf --output_dir results/cnn_raw_mf_baseline
     python train_cnn.py --s1 data/raw/session1_raw.csv \\
                         --s2 data/raw/session2_raw.csv \\
-                        --labeled data/features/features_labeled_new.csv
+                        --labeled data/features/features_labeled.csv
 
-CV strategy : 5-fold StratifiedGroupKFold, grouping by Block_ID (same
-              policy as the feature-based models — all windows from one
-              duty-cycle burst stay in the same fold).
-
-Scaling     : per-channel z-normalisation fitted on each training fold,
-              applied to the corresponding test fold.  The final scaler
-              (fitted on the full dataset) is saved alongside the model.
+CV strategy : 5-fold StratifiedGroupKFold, grouping by Block_ID.
 
 Outputs (in --output_dir)
 -------------------------
@@ -49,12 +53,15 @@ from sklearn.preprocessing import LabelEncoder
 from config import (
     CLASSES,
     LABELED_FEATURES_FILE,
+    LABELED_FEATURES_MF_FILE,
     N_FOLDS,
     RAW_SESSION1_FILE,
     RAW_SESSION2_FILE,
+    RAW_MF_SESSION1_FILE,
+    RAW_MF_SESSION2_FILE,
     RESULTS_DIR,
 )
-from src.data.raw_preprocess import load_raw_cnn_dataset
+from src.data.raw_preprocess import load_raw_cnn_dataset, load_raw_mf_cnn_dataset
 from src.models.cnn_model import CNNClassifier
 
 
@@ -197,28 +204,49 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Train 1D CNN on raw M3X sensor windows."
     )
-    parser.add_argument("--s1",      default=str(RAW_SESSION1_FILE),
-                        help="Session 1 raw CSV")
-    parser.add_argument("--s2",      default=str(RAW_SESSION2_FILE),
-                        help="Session 2 raw CSV")
-    parser.add_argument("--labeled", default=str(LABELED_FEATURES_FILE),
-                        help="Labeled feature CSV (for Block_ID → Label mapping)")
+    parser.add_argument("--mf", action="store_true",
+                        help="Use motion-filtered data (session*_raw_mf.xlsx)")
+    parser.add_argument("--s1",      default=None,
+                        help="Session 1 data file (default: config value)")
+    parser.add_argument("--s2",      default=None,
+                        help="Session 2 data file (default: config value)")
+    parser.add_argument("--labeled", default=None,
+                        help="Labeled feature CSV (default: config value)")
     parser.add_argument("--n_folds", type=int, default=N_FOLDS,
                         help=f"CV folds (default: {N_FOLDS})")
-    parser.add_argument("--output_dir", default=str(RESULTS_DIR / "cnn_raw_baseline"),
-                        help="Output directory")
+    parser.add_argument("--output_dir", default=None,
+                        help="Output directory (default: cnn_raw_baseline or cnn_raw_mf_baseline)")
     args = parser.parse_args()
 
-    out = Path(args.output_dir)
+    if args.mf:
+        default_s1      = str(RAW_MF_SESSION1_FILE)
+        default_s2      = str(RAW_MF_SESSION2_FILE)
+        default_labeled = str(LABELED_FEATURES_MF_FILE)
+        default_out     = str(RESULTS_DIR / "cnn_raw_mf_baseline")
+    else:
+        default_s1      = str(RAW_SESSION1_FILE)
+        default_s2      = str(RAW_SESSION2_FILE)
+        default_labeled = str(LABELED_FEATURES_FILE)
+        default_out     = str(RESULTS_DIR / "cnn_raw_baseline")
+
+    s1_path      = args.s1      or default_s1
+    s2_path      = args.s2      or default_s2
+    labeled_path = args.labeled or default_labeled
+    out          = Path(args.output_dir or default_out)
     out.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
     # 1. Build windowed dataset
     # ------------------------------------------------------------------
-    print("Loading raw sensor data …")
-    X, y, groups = load_raw_cnn_dataset(args.s1, args.s2, args.labeled)
+    if args.mf:
+        print("Loading motion-filtered sensor data ...")
+        X, y, groups = load_raw_mf_cnn_dataset(s1_path, s2_path, labeled_path)
+    else:
+        print("Loading raw sensor data ...")
+        X, y, groups = load_raw_cnn_dataset(s1_path, s2_path, labeled_path)
 
-    print(f"\nRunning {args.n_folds}-fold StratifiedGroupKFold cross-validation\n")
+    variant = "MF" if args.mf else "unfiltered"
+    print(f"\nRunning {args.n_folds}-fold StratifiedGroupKFold cross-validation ({variant})\n")
     print("-" * 40)
     print("Model : CNN_1D")
 
@@ -232,7 +260,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     # 3. Retrain on full dataset → serialize
     # ------------------------------------------------------------------
-    print("\nRetraining on full dataset …")
+    print("\nRetraining on full dataset ...")
     mean, std = _fit_channel_scaler(X)
     X_full    = _apply_channel_scaler(X, mean, std)
 

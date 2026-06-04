@@ -113,7 +113,12 @@ def merge(
     # Load features — accept both CSV and Excel
     fp = Path(features_path)
     if fp.suffix.lower() in (".xlsx", ".xls"):
-        features = pd.read_excel(fp, sheet_name="Features")
+        xl = pd.ExcelFile(fp)
+        sheet = next(
+            (s for s in ["Features", "MotionFiltered_Features"] if s in xl.sheet_names),
+            xl.sheet_names[0],
+        )
+        features = xl.parse(sheet)
     else:
         features = pd.read_csv(fp)
 

@@ -2,16 +2,20 @@
 
 This document covers everything needed to run the trained models on new data. It is primarily written for Farhad (MCU deployment) but applies equally to anyone integrating the models in a Python environment.
 
+Two dataset variants exist for each model: unfiltered (all data) and motion-filtered (MF, motion artifacts removed). The unfiltered CNN is the recommended deployment model.
+
 ---
 
 ## Model overview
 
-| Model | Best for | Input | Scaling | Output file |
-|-------|----------|-------|---------|-------------|
-| **CNN (1D, raw)** | Deployment — best F1 | 112 samples x 9 channels of raw sensor data | Per-channel z-norm | `cnn_raw_baseline/cnn_1d_model.tflite` |
-| XGBoost | Feature-based fallback | 38 engineered features | None | `xgb_baseline/xgboost_model.pkl` |
-| Random Forest | Feature-based fallback | 38 engineered features | None | `baseline/randomforest_model.pkl` |
-| SVM | Feature-based | 38 engineered features | StandardScaler | `baseline/svm_model.pkl` + `svm_scaler.pkl` |
+| Model | Dataset | Best for | Input | Output file |
+|-------|---------|----------|-------|-------------|
+| **CNN (1D, raw)** | Unfiltered | **Deployment -- best F1** | 112x9 raw windows | `cnn_raw_baseline/cnn_1d_model.tflite` |
+| CNN (1D, raw MF) | Motion-filtered | Comparative study | 112x9 raw windows | `cnn_raw_mf_baseline/cnn_1d_model.tflite` |
+| XGBoost | Unfiltered | Feature-based fallback | 38 features | `xgb_baseline/xgboost_model.onnx` |
+| XGBoost MF | Motion-filtered | Feature-based MF | 38 features | `xgb_mf_baseline/xgboost_model.onnx` |
+| Random Forest | Unfiltered | Feature-based fallback | 38 features | `baseline/randomforest_model.onnx` |
+| SVM | Unfiltered | Feature-based | 38 features | `baseline/svm_model.onnx` |
 
 All models output one of four class labels: `relax`, `eustress`, `distress`, `eustress+distress`.
 
@@ -197,6 +201,50 @@ model  = joblib.load("results/baseline/svm_model.pkl")
 features_scaled = scaler.transform(features)
 predictions     = model.predict(features_scaled)
 probabilities   = model.predict_proba(features_scaled)
+```
+
+---
+
+## Motion-filtered CNN inference
+
+Use the same TFLite inference code as above, but load the MF scaler and MF model:
+
+```python
+scaler = np.load("results/cnn_raw_mf_baseline/cnn_1d_scaler.npz")
+interpreter = tf.lite.Interpreter(model_path="results/cnn_raw_mf_baseline/cnn_1d_model.tflite")
+```
+
+Everything else (channel order, z-norm formula, output mapping) is identical.
+
+---
+
+## ONNX inference for feature-based models
+
+All feature-based models (XGBoost, RF, SVM) are exported to ONNX alongside their `.pkl` files. ONNX inference is useful for deployment outside Python or for cross-platform serving.
+
+```python
+import onnxruntime as rt
+import numpy as np
+
+CLASS_NAMES = ["distress", "eustress", "eustress+distress", "relax"]  # alphabetical
+
+# Example for XGBoost (same pattern for RF and SVM)
+sess = rt.InferenceSession("results/xgb_baseline/xgboost_model.onnx")
+input_name  = sess.get_inputs()[0].name
+label_name  = sess.get_outputs()[0].name
+prob_name   = sess.get_outputs()[1].name
+
+# features: numpy array shape (N, 38) in FEATURE_COLS order, dtype float32
+features = features.astype(np.float32)
+labels, probs = sess.run([label_name, prob_name], {input_name: features})
+# labels: (N,) int64 class indices; probs: dict with key 'probabilities', shape (N, 4)
+```
+
+For the SVM ONNX model, apply the StandardScaler first:
+```python
+import joblib
+scaler = joblib.load("results/baseline/svm_scaler.pkl")
+features_scaled = scaler.transform(features).astype(np.float32)
 ```
 
 ---

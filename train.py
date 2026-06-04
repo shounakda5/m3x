@@ -6,9 +6,9 @@ train.py — Train SVM, Random Forest, and XGBoost classifiers on the
 
 Usage
 -----
-    python train.py --data data/features/features_labeled_new.csv
-    python train.py --data data/features/features_labeled_new.csv --models svm rf
-    python train.py --data data/features/features_labeled_new.csv --models svm rf --output_dir results/baseline
+    python train.py --data data/features/features_labeled.csv
+    python train.py --data data/features/features_labeled.csv --models svm rf
+    python train.py --data data/features/features_labeled_mf.csv --models xgb --output_dir results/xgb_mf_baseline
 
 Options
 -------
@@ -23,8 +23,9 @@ import sys
 from pathlib import Path
 
 import joblib
+import numpy as np
 
-from config import N_FOLDS, RESULTS_DIR
+from config import N_FOLDS, RESULTS_DIR, FEATURE_COLS
 from src.data.preprocess import load_labeled_dataset, extract_Xy, clean_features, fit_scaler
 from src.models.svm_model  import SVMClassifier
 from src.models.rf_model   import RFClassifier
@@ -42,6 +43,37 @@ _ALL_MODELS = {
     "rf":  RFClassifier,
     "xgb": XGBClassifier,
 }
+
+# ---------------------------------------------------------------------------
+# ONNX export helpers
+# ---------------------------------------------------------------------------
+
+def _export_xgb_onnx(xgb_model, n_features: int, out_path: Path) -> None:
+    """Export a fitted XGBClassifier to ONNX via onnxmltools."""
+    try:
+        from onnxmltools import convert_xgboost
+        from onnxmltools.convert.common.data_types import FloatTensorType
+        initial_types = [("float_input", FloatTensorType([None, n_features]))]
+        onnx_model = convert_xgboost(xgb_model, initial_types=initial_types)
+        with open(out_path, "wb") as f:
+            f.write(onnx_model.SerializeToString())
+        print(f"ONNX model saved      : {out_path}")
+    except Exception as e:
+        print(f"[WARN] XGBoost ONNX export skipped: {e}")
+
+
+def _export_sklearn_onnx(sklearn_model, model_name: str, n_features: int, out_path: Path) -> None:
+    """Export a fitted sklearn model (RF or SVM) to ONNX via skl2onnx."""
+    try:
+        from skl2onnx import convert_sklearn
+        from skl2onnx.common.data_types import FloatTensorType
+        initial_types = [("float_input", FloatTensorType([None, n_features]))]
+        onnx_model = convert_sklearn(sklearn_model, initial_types=initial_types)
+        with open(out_path, "wb") as f:
+            f.write(onnx_model.SerializeToString())
+        print(f"ONNX model saved      : {out_path}")
+    except Exception as e:
+        print(f"[WARN] {model_name} ONNX export skipped: {e}")
 
 
 def main() -> None:
@@ -119,6 +151,16 @@ def main() -> None:
             joblib.dump(model._model, output_dir / f"{model_name_lower}_model.pkl")
         if scaler is not None:
             joblib.dump(scaler, output_dir / f"{model_name_lower}_scaler.pkl")
+
+        # ONNX export
+        n_features = len(feature_cols)
+        if model.name == "XGBoost" and hasattr(model, "_model"):
+            _export_xgb_onnx(model._model, n_features,
+                              output_dir / "xgboost_model.onnx")
+        elif model.name in ("RandomForest", "SVM") and hasattr(model, "_model"):
+            onnx_name = f"{model_name_lower}_model.onnx"
+            _export_sklearn_onnx(model._model, model.name, n_features,
+                                  output_dir / onnx_name)
 
         # RF: also save feature importances
         if hasattr(model, "feature_importances"):

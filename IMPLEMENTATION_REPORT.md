@@ -183,18 +183,25 @@ MaxPooling halves the temporal dimension twice (112 -> 56 -> 28) before GlobalAv
 
 ## 11. Results
 
-### Overall performance (5-fold StratifiedGroupKFold)
+### Unfiltered dataset (5-fold StratifiedGroupKFold, 1,288 rows)
 
-| Model | Input | Accuracy | F1 Macro | Notes |
+| Model | Input | Accuracy | F1 Macro | Export |
 |---|---|:---:|:---:|---|
-| **CNN (1D, raw)** | Raw 112x9 windows | **80.6%** +/- 2.4% | **0.801** +/- 0.023 | Best overall |
-| XGBoost | 38 features | 78.6% +/- 1.8% | 0.766 +/- 0.018 | |
-| Random Forest | 38 features | 74.5% +/- 2.8% | 0.700 +/- 0.030 | |
-| SVM | 38 features | 59.1% +/- 2.7% | 0.510 +/- 0.020 | Needs tuning |
+| **CNN (1D, raw)** | Raw 112x9 windows | **80.6%** +/- 2.4% | **0.801** +/- 0.023 | TFLite |
+| XGBoost | 38 features | 78.6% +/- 1.8% | 0.766 +/- 0.018 | ONNX |
+| Random Forest | 38 features | 74.5% +/- 2.8% | 0.700 +/- 0.033 | ONNX |
+| SVM | 38 features | 59.1% +/- 2.7% | 0.512 +/- 0.023 | ONNX |
 
-The raw CNN outperforms all feature-based models by 3.5+ F1 points. XGBoost is the best feature-based model.
+### Motion-filtered dataset (5-fold StratifiedGroupKFold, 931 rows)
 
-### Per-class performance -- CNN_1D (best model)
+| Model | Input | Accuracy | F1 Macro | Export |
+|---|---|:---:|:---:|---|
+| **CNN (1D, raw MF)** | Raw 112x9 windows | **81.0%** +/- 3.6% | **0.758** +/- 0.060 | TFLite |
+| XGBoost MF | 38 features | 79.4% +/- 4.0% | 0.705 +/- 0.028 | ONNX |
+
+Motion filtering removes most distress blocks (4.3% vs 22.2% unfiltered), which lowers macro F1 despite similar accuracy. The CNN and XGBoost rankings hold on both datasets.
+
+### Per-class performance -- CNN_1D unfiltered (best deployment model)
 
 | Class | Precision | Recall | F1 | Support |
 |---|:---:|:---:|:---:|:---:|
@@ -203,7 +210,14 @@ The raw CNN outperforms all feature-based models by 3.5+ F1 points. XGBoost is t
 | relax | 0.85 | 0.71 | 0.78 | 468 |
 | eustress | 0.72 | 0.79 | 0.75 | 176 |
 
-Eustress is the smallest class and physiologically the most similar to eustress+distress; both the CNN and feature models perform worst on it.
+### Per-class performance -- CNN_1D motion-filtered
+
+| Class | Precision | Recall | F1 | Support |
+|---|:---:|:---:|:---:|:---:|
+| eustress+distress | 0.89 | 0.87 | 0.88 | 269 |
+| eustress | 0.81 | 0.79 | 0.80 | 266 |
+| relax | 0.81 | 0.80 | 0.80 | 322 |
+| distress | 0.47 | 0.69 | 0.56 | 39 |
 
 ### RF feature importances (top 5)
 
@@ -263,19 +277,23 @@ combined[combined["Label"] != "Unknown"].to_csv("data/features/features_labeled_
 
 **Step 4a -- Train feature-based models:**
 ```bash
-python train.py --data data/features/features_labeled_new.csv
-python train.py --data data/features/features_labeled_new.csv --models svm rf --output_dir results/my_run
+# Unfiltered
+python train.py --data data/features/features_labeled.csv
+python train.py --data data/features/features_labeled.csv --models xgb --output_dir results/xgb_baseline
+
+# Motion-filtered
+python train.py --data data/features/features_labeled_mf.csv --models xgb --output_dir results/xgb_mf_baseline
 ```
 
 **Step 4b -- Train raw CNN:**
 ```bash
-python train_cnn.py
-python train_cnn.py --output_dir results/cnn_raw_v2
+python train_cnn.py          # unfiltered
+python train_cnn.py --mf     # motion-filtered
 ```
 
 **Tune hyperparameters (optional):**
 ```bash
-python tune.py --data data/features/features_labeled_new.csv --models svm --n-iter 40
+python tune.py --data data/features/features_labeled.csv --models svm --n-iter 40
 ```
 
 **Run tests:**
@@ -289,7 +307,7 @@ pytest tests/ -v
 
 ## 14. Summary
 
-The pipeline classifies four momentary stress states (relax, eustress, distress, eustress+distress) from M3X ring sensor data across two recording sessions. The **1D CNN on raw time-series** is the best model (80.6% accuracy, 0.801 macro F1), achieving this by operating directly on 112-sample x 9-channel sensor windows rather than on engineered features. **XGBoost** is the best feature-based model (78.6% accuracy, 0.766 macro F1) and does not require any deep learning infrastructure. **Random Forest** (74.5% accuracy, 0.700 macro F1) is a robust fallback. **SVM** at 59.1% accuracy needs re-tuning on the current 4-class dataset.
+The pipeline classifies four momentary stress states (relax, eustress, distress, eustress+distress) from M3X ring sensor data across two recording sessions, on both unfiltered and motion-filtered data variants. The **1D CNN on raw time-series** is the best model on the unfiltered dataset (80.6% accuracy, 0.801 macro F1), achieving this by operating directly on 112-sample x 9-channel sensor windows rather than on engineered features. On the motion-filtered dataset, the CNN achieves 81.0% accuracy but 0.758 macro F1, reflecting the near-elimination of distress samples (4.3% of blocks). **XGBoost** is the best feature-based model on both datasets. **Random Forest** and **SVM** models are available for the unfiltered data; all models are exported to ONNX or TFLite for portable deployment.
 
 The most important engineering decisions in this pipeline are: (1) treating raw sensor time-series as the CNN input instead of engineered features, which raised F1 from 44.9% to 80.1%; (2) grouped cross-validation by Block_ID to prevent leakage from correlated sub-windows; and (3) per-channel z-normalization fit on the training fold only to prevent scaler leakage.
 

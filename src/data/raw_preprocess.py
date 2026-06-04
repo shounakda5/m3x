@@ -33,8 +33,11 @@ from config import (
     RAW_N_WINDOWS_PER_BURST,
     RAW_CHANNELS,
     LABELED_FEATURES_FILE,
+    LABELED_FEATURES_MF_FILE,
     RAW_SESSION1_FILE,
     RAW_SESSION2_FILE,
+    RAW_MF_SESSION1_FILE,
+    RAW_MF_SESSION2_FILE,
 )
 
 MATCH_TOLERANCE_S = 2.0   # max allowed |burst_start - Block_Start_s| for a match
@@ -275,6 +278,132 @@ def load_raw_cnn_dataset(
     groups = np.array(all_groups, dtype=int)
 
     print(f"\nRaw CNN dataset: {X.shape[0]} windows  "
+          f"({X.shape[1]} timesteps x {X.shape[2]} channels)")
+    print("Label distribution:")
+    for lbl, cnt in zip(*np.unique(y, return_counts=True)):
+        print(f"  {lbl:<20}  {cnt:>5}  ({100*cnt/len(y):.1f}%)")
+
+    return X, y, groups
+
+
+# ---------------------------------------------------------------------------
+# Motion-filtered variant: loads pre-segmented MATLAB Excel output
+# ---------------------------------------------------------------------------
+
+def _load_mf_session(xlsx_path) -> pd.DataFrame:
+    """
+    Load a motion-filtered raw Excel file produced by the MATLAB pipeline.
+
+    Unlike the plain raw CSVs, these files already contain Block_ID,
+    SubWindow_ID, and other segmentation metadata added by MATLAB.
+    Time_PPG is in seconds (not milliseconds).  Derived channels are
+    added here identically to load_raw_session().
+    """
+    xl = pd.ExcelFile(xlsx_path)
+    df = xl.parse(xl.sheet_names[0])
+    df = df[["Time_PPG", "LED1", "LED2", "LED3", "Temp",
+             "AccX", "AccY", "AccZ",
+             "Block_ID", "Block_Start_s", "SubWindow_ID"]].copy()
+    df = df.astype({c: float for c in df.columns if c not in ("Block_ID", "SubWindow_ID")})
+    df["Block_ID"]    = df["Block_ID"].astype(int)
+    df["SubWindow_ID"] = df["SubWindow_ID"].astype(int)
+    df["LED3_LED1"] = df["LED3"] - df["LED1"]
+    df["LED3_LED2"] = df["LED3"] - df["LED2"]
+    return df
+
+
+def load_raw_mf_cnn_dataset(
+    s1_xlsx=None,
+    s2_xlsx=None,
+    labeled_mf_csv=None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Motion-filtered pipeline: pre-segmented MATLAB Excel files -> labeled windows.
+
+    The motion-filtered Excel files contain per-row Block_ID and SubWindow_ID
+    metadata.  Windows are extracted by grouping rows on these columns and
+    taking the first RAW_WINDOW_SAMPLES rows from each group; groups with
+    fewer than RAW_WINDOW_SAMPLES rows are dropped.
+
+    Labels and globally-unique Block_IDs are taken from the combined
+    features_labeled_mf.csv, matched by (Session_ID, Block_Start_s).
+
+    Parameters
+    ----------
+    s1_xlsx, s2_xlsx   : paths to per-session motion-filtered xlsx files
+    labeled_mf_csv     : path to features_labeled_mf.csv
+
+    Returns
+    -------
+    X      : (N, RAW_WINDOW_SAMPLES, len(RAW_CHANNELS))  float32
+    y      : (N,)  str   stress labels
+    groups : (N,)  int   globally-unique Block_IDs for StratifiedGroupKFold
+    """
+    s1_xlsx        = s1_xlsx        or RAW_MF_SESSION1_FILE
+    s2_xlsx        = s2_xlsx        or RAW_MF_SESSION2_FILE
+    labeled_mf_csv = labeled_mf_csv or LABELED_FEATURES_MF_FILE
+
+    labeled_df = pd.read_csv(labeled_mf_csv)
+
+    SENSOR_COLS = ["LED1", "LED2", "LED3", "Temp",
+                   "AccX", "AccY", "AccZ", "LED3_LED1", "LED3_LED2"]
+
+    all_X, all_y, all_groups = [], [], []
+
+    for session, xlsx_path in [(1, s1_xlsx), (2, s2_xlsx)]:
+        df = _load_mf_session(xlsx_path)
+
+        # Build a Block_Start_s -> (label, global_block_id) lookup from the
+        # labeled CSV for this session.
+        sess_lab = (
+            labeled_df[labeled_df["Session_ID"] == session]
+            [["Block_ID", "Block_Start_s", "Label"]]
+            .drop_duplicates(subset="Block_ID")
+        )
+        sess_lab_starts = sess_lab["Block_Start_s"].values
+
+        n_windows = 0
+        n_dropped = 0
+        n_unmatched = 0
+
+        for (blk_id, sw_id), grp in df.groupby(["Block_ID", "SubWindow_ID"]):
+            if len(grp) < RAW_WINDOW_SAMPLES:
+                n_dropped += 1
+                continue
+
+            window = grp[SENSOR_COLS].values[:RAW_WINDOW_SAMPLES].astype(np.float32)
+
+            # Match this block's start time to the labeled CSV
+            blk_start = grp["Block_Start_s"].iloc[0]
+            diffs = np.abs(sess_lab_starts - blk_start)
+            nearest_idx = int(np.argmin(diffs))
+            if diffs[nearest_idx] > 2.0:
+                n_unmatched += 1
+                continue
+
+            row = sess_lab.iloc[nearest_idx]
+            label    = row["Label"]
+            global_id = int(row["Block_ID"])
+
+            if label == "Unknown":
+                continue
+
+            all_X.append(window)
+            all_y.append(label)
+            all_groups.append(global_id)
+            n_windows += 1
+
+        print(
+            f"  Session {session}: {n_windows} windows accepted, "
+            f"{n_dropped} dropped (<{RAW_WINDOW_SAMPLES} samples), "
+            f"{n_unmatched} unmatched"
+        )
+
+    X      = np.stack(all_X,      axis=0)
+    y      = np.array(all_y,      dtype=object)
+    groups = np.array(all_groups, dtype=int)
+
+    print(f"\nMF CNN dataset: {X.shape[0]} windows  "
           f"({X.shape[1]} timesteps x {X.shape[2]} channels)")
     print("Label distribution:")
     for lbl, cnt in zip(*np.unique(y, return_counts=True)):
