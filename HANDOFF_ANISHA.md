@@ -4,6 +4,21 @@ Hey Anisha — sorry for the delay on getting the refactored code to you. To mak
 
 ---
 
+## Update — Shounak's models are done
+
+XGBoost and the raw 1D CNN have both been trained and validated. Here's where things stand across all four models so you know what you're benchmarking against:
+
+| Model | Accuracy | F1 Macro | Status |
+|---|---|---|---|
+| **CNN (1D, raw sensor)** | **80.6%** +/- 2.4% | **0.801** +/- 0.023 | Done -- best overall |
+| XGBoost | 78.6% +/- 1.8% | 0.766 +/- 0.018 | Done |
+| Random Forest | 74.5% +/- 2.8% | 0.700 +/- 0.030 | Baseline done -- your call on tuning |
+| SVM | 59.1% +/- 2.7% | 0.510 +/- 0.020 | Needs tuning |
+
+The CNN uses raw sensor data directly (no MATLAB features needed) and is the deployment model for Farhad. Your focus is tuning SVM and RF on the feature-based side. Getting SVM above ~0.65 F1 macro and verifying RF stays above 0.70 would be solid contributions.
+
+---
+
 ## What's already done
 
 ### 1. The labeled dataset is ready
