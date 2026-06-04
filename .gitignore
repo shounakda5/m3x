@@ -17,3 +17,4 @@ email_thread_artifacts/
 *.swp
 .DS_Store
 Thumbs.db
+~$*

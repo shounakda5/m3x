@@ -1,6 +1,8 @@
-# Stress Classification from Physiological EMA Data
+# M3X Stress Classification Pipeline
 
-A machine-learning pipeline that classifies momentary stress states — **Eustress**, **Distress**, **Relaxed**, **Mixed** — from wearable physiological time-series features using SVM and Random Forest classifiers, evaluated with stratified group k-fold cross-validation.
+A machine-learning pipeline that classifies momentary stress states from M3X ring sensor physiological features using four model types — SVM, Random Forest, XGBoost, and 1D CNN — evaluated with 5-fold Stratified Group Cross-Validation.
+
+Part of a workplace lighting EMA (Ecological Momentary Assessment) study at USC.
 
 ---
 
@@ -12,21 +14,22 @@ A machine-learning pipeline that classifies momentary stress states — **Eustre
 4. [Label taxonomy](#4-label-taxonomy)
 5. [Installation](#5-installation)
 6. [End-to-end workflow](#6-end-to-end-workflow)
-7. [Design decisions — bias prevention](#7-design-decisions--bias-prevention)
-8. [Configuration](#8-configuration)
-9. [Output artefacts](#9-output-artefacts)
-10. [Remaining steps to complete the experiment](#10-remaining-steps-to-complete-the-experiment)
+7. [Baseline results](#7-baseline-results)
+8. [Design decisions](#8-design-decisions)
+9. [Configuration](#9-configuration)
+10. [Output artefacts](#10-output-artefacts)
 
 ---
 
 ## 1. Project overview
 
-This project is part of a workplace lighting EMA (Ecological Momentary Assessment) study conducted at USC. Participants wear a physiological sensor and periodically receive short surveys asking them to rate their current activity as a source of **opportunity** and/or **pressure**. The combination of these two ratings maps to one of four stress-state labels.
+Participants wear an M3X ring sensor that continuously records PPG (three LED channels), accelerometer, and temperature data. Periodically, they receive a short EMA survey rating their current activity on two dimensions — **Opportunity** and **Pressure** — on a 1–6 Likert scale. The combination of these two ratings maps to one of four stress-state labels.
 
-The goal is to train a supervised classifier that predicts the momentary stress state from wearable sensor features, enabling passive stress monitoring without requiring self-report.
+The pipeline trains a supervised classifier that predicts the momentary stress state from wearable sensor features, enabling passive stress monitoring without self-report.
 
-**Models compared:** Support Vector Machine (SVM) and Random Forest (RF)  
-**Evaluation strategy:** 5-fold Stratified Group Cross-Validation (see [§7](#7-design-decisions--bias-prevention))
+**Models:** SVM · Random Forest · XGBoost · 1D CNN  
+**Evaluation:** 5-fold Stratified Group Cross-Validation (`Block_ID` as group)  
+**Dataset:** 1,288 rows · 38 features · 4 classes · 2 recording sessions (June 1 + June 2)
 
 ---
 
@@ -35,130 +38,140 @@ The goal is to train a supervised classifier that predicts the momentary stress 
 ```
 Project/
 │
-├── config.py                   # All tuneable constants (paths, params, class names)
-├── train.py                    # Main entry point — runs CV and prints comparison
+├── config.py                    # All tuneable constants (paths, hyperparams, class names)
+├── train.py                     # Main entry point — trains models, runs CV, serializes outputs
+├── tune.py                      # Hyperparameter search (RandomizedSearchCV)
 ├── requirements.txt
 │
 ├── src/
 │   ├── data/
-│   │   ├── classify_survey.py  # Step 1: converts Qualtrics CSV → labelled CSV
-│   │   ├── merge_labels.py     # Step 2: attach survey labels to feature rows by timestamp
-│   │   └── preprocess.py       # Load, clean, extract X / y / groups
+│   │   ├── classify_survey.py   # Step 1: converts Qualtrics CSV → labelled survey CSV
+│   │   ├── merge_labels.py      # Step 2: attaches survey labels to feature rows by timestamp
+│   │   └── preprocess.py        # Load, clean, extract X / y / groups
 │   │
 │   ├── models/
-│   │   ├── base.py             # Abstract BaseClassifier interface
-│   │   ├── svm_model.py        # SVC(kernel=rbf, class_weight=balanced)
-│   │   └── rf_model.py         # RandomForestClassifier + feature_importances()
+│   │   ├── base.py              # Abstract BaseClassifier interface
+│   │   ├── svm_model.py         # SVC (kernel=rbf, class_weight=balanced)
+│   │   ├── rf_model.py          # RandomForestClassifier + feature_importances()
+│   │   ├── xgb_model.py         # XGBClassifier (sample_weight=balanced)
+│   │   └── cnn_model.py         # 1D CNN (Conv → GlobalAvgPool → Dense, early stopping)
 │   │
 │   └── evaluation/
-│       ├── cross_val.py        # StratifiedGroupKFold runner
-│       └── metrics.py          # Reporting: per-model summary, comparison table, CSV export
+│       ├── cross_val.py         # StratifiedGroupKFold runner
+│       └── metrics.py           # Reporting: per-model summary, comparison table, CSV export
 │
 ├── data/
 │   ├── survey/
-│   │   ├── Lighting_EMA_Main_April_6_2026_14.52.csv          # Raw Qualtrics survey export
-│   │   └── Lighting_EMA_Main_April_6_2026_14.52_labelled.csv # Survey labels (8 rows)
+│   │   ├── M3X_EMA_session1_Jun1_labelled.csv   # Labelled survey — session 1
+│   │   └── M3X_EMA_session2_Jun2_labelled.csv   # Labelled survey — session 2
 │   │
 │   └── features/
-│       ├── features_output_24hz.csv   # Physiological feature matrix (860 rows × 19 cols)
-│       └── features_labeled.csv       # Merged feature + label dataset (created by merge_labels.py)
+│       ├── 1_suhail_M3X_Features_AllBlocks_output.xlsx   # Raw MATLAB features — session 1
+│       ├── 2_suhail_M3X_Features_AllBlocks_output.xlsx   # Raw MATLAB features — session 2
+│       └── features_labeled_new.csv                      # Final labeled dataset (pipeline output)
 │
-└── results/                    # Created at runtime by train.py
-    ├── fold_results.csv
-    └── RandomForest_feature_importances.csv
+├── results/
+│   ├── baseline/                # SVM + RF baseline (pre-tuning)
+│   │   ├── fold_results.csv
+│   │   ├── svm_model.pkl · svm_scaler.pkl
+│   │   ├── randomforest_model.pkl
+│   │   └── RandomForest_feature_importances.csv
+│   ├── xgb_baseline/            # XGBoost baseline
+│   │   ├── fold_results.csv
+│   │   ├── xgboost_model.pkl
+│   │   └── xgboost_model.onnx
+│   └── cnn_baseline/            # CNN baseline
+│       ├── fold_results.csv
+│       ├── cnn_1d_model.pkl · cnn_1d_scaler.pkl
+│       └── cnn_1d_model.tflite  ← deployment artefact for Farhad
+│
+└── tests/
+    ├── test_classify_survey.py  # 26 tests for EMA classification logic
+    └── test_merge_labels.py     # 26 tests for label merging logic
 ```
 
 ---
 
 ## 3. Data description
 
-### Physiological feature file — `data/features/features_output_24hz.csv`
+### Labeled feature dataset — `data/features/features_labeled_new.csv`
 
-860 rows · 19 columns
+1,288 rows · 49 columns (38 physiological features + index + label columns)
+
+Each row is one ~5 s sub-window extracted by MATLAB from a 10 s recording block. Two sub-windows come from each block (`SubWindow_ID` = 1 or 2).
+
+**Key columns:**
 
 | Column | Role | Description |
 |--------|------|-------------|
-| `Window_10s` | **Index** | 10-second epoch the row belongs to (e.g. `"10.0-20.0"`) |
-| `SubWindow_3s` | **Index** | 3-second sub-window within that epoch (e.g. `"10.5-13.5"`) |
-| `Time_Mid` | **Index** | Midpoint of the sub-window in **seconds elapsed since recording start** |
-| `HR_LED1` | Feature | Heart rate from LED1 (raw) |
-| `HRV_LED1` | Feature | Heart rate variability from LED1 (raw) |
-| `PA_LED1` / `PA_LED2` | Feature | Photoplethysmogram amplitude, both channels |
-| `PAV_LED1` / `PAV_LED2` | Feature | Amplitude velocity, both channels |
-| `PA_LED1_minus_LED2` | Feature | Channel difference |
-| `PA_LED1_div_LED2` | Feature | Channel ratio |
-| `AccX_std` / `AccY_std` / `AccZ_std` | Feature | Accelerometer standard deviation per axis |
-| `Temp_Avg` | Feature | Average skin temperature |
-| `HR_LED1_Clean` / `HRV_LED1_Clean` | Feature | Cleaned/artifact-filtered HR and HRV |
-| `PA_LED1_Clean` / `PA_LED2_Clean` | Feature | Cleaned amplitude signals |
+| `Block_ID` | Group | Globally unique 10 s block ID across both sessions |
+| `SubWindow_ID` | Index | Sub-window index within the block (1 or 2) |
+| `Block_Start_s` / `Block_End_s` | Index | Elapsed time of the block in seconds since session start |
+| `Label` | Target | One of: `relax`, `eustress`, `distress`, `eustress+distress` |
+| `PA1`, `PA2`, `PA3`, … | Feature | PPG amplitude features per LED channel |
+| `HR_LED1`, `SDNN_LED1`, `RMSSD_LED1` | Feature | Heart rate and HRV features |
+| `AccX_STD`, `AccY_STD`, `AccZ_STD`, `Acc_Total_STD` | Feature | Accelerometer standard deviation per axis |
+| `mean_temperature` | Feature | Average skin temperature |
 
-**Recording span:** `Time_Mid` ranges from **12 s** (first sub-window: `10.5–13.5 s`) to **2878 s** (last sub-window: `2876.5–2879.5 s`), giving a total recording length of **≈ 47 minutes 58 seconds**.
+**Class distribution:**
 
-**Sub-window structure:** Each 10-second epoch contains three 3-second sub-windows (slight overlap). All three sub-windows of the same epoch share the same Window_10s label — this matters for cross-validation grouping (see §7).
+| Label | Count | % |
+|-------|------:|--:|
+| relax | 468 | 36.3% |
+| eustress+distress | 358 | 27.8% |
+| distress | 286 | 22.2% |
+| eustress | 176 | 13.7% |
 
-### Survey label file — `data/survey/Lighting_EMA_Main_April_6_2026_14.52_labelled.csv`
+**Sessions:**
+- `Session_ID = 1` — June 1 recording
+- `Session_ID = 2` — June 2 recording
+- Session 2 Block IDs are offset to avoid collision with session 1
 
-8 labelled survey responses, produced by `src/data/classify_survey.py` from the raw Qualtrics export.
+### Survey files — `data/survey/`
 
-| Column | Description |
-|--------|-------------|
-| `StartDate` | Wall-clock time the participant opened the survey |
-| `EndDate` | Wall-clock time the participant submitted the survey |
-| `Opportunity` / `Pressure` | Raw free-text responses |
-| `Opportunity_score` / `Pressure_score` | Numeric scale 1–6 |
-| `Label` | One of: `Eustress`, `Distress`, `Relaxed`, `Mixed` |
-
-Survey windows from the dataset:
-
-| # | StartDate | EndDate | Label |
-|---|-----------|---------|-------|
-| 1 | 2026-03-31 14:33:12 | 2026-03-31 14:33:40 | Relaxed |
-| 2 | 2026-03-31 14:47:56 | 2026-03-31 14:48:24 | Relaxed |
-| 3 | 2026-03-31 15:20:32 | 2026-03-31 15:21:02 | Distress |
-| 4 | 2026-03-31 15:29:48 | 2026-03-31 15:30:08 | Relaxed |
-| 5 | 2026-03-31 17:16:00 | 2026-03-31 17:16:33 | Mixed |
-| 6 | 2026-03-31 17:21:41 | 2026-03-31 17:22:09 | Mixed |
-| 7 | 2026-03-31 17:29:28 | 2026-03-31 17:29:50 | Eustress |
-| 8 | 2026-03-31 17:34:50 | 2026-03-31 17:35:08 | Mixed |
+Two labelled survey CSVs produced by `classify_survey.py`. Each row is one EMA response with columns: `StartDate`, `EndDate`, `Opportunity`, `Pressure`, `Opportunity_score`, `Pressure_score`, `Label`.
 
 ---
 
 ## 4. Label taxonomy
 
-Labels are assigned by `classify_survey.py` based on the participant's Opportunity and Pressure ratings (6-point Likert scale, 1 = "very definitely NOT a source", 6 = "very definitely IS a source"):
+Labels are assigned by `classify_survey.py` from the participant's Opportunity (opp) and Pressure (pres) scores (1–6 Likert scale). Threshold: ≤ 3 = Low, ≥ 4 = High.
 
-| Label | Opportunity score | Pressure score | Interpretation |
-|-------|:-----------------:|:--------------:|----------------|
-| **Eustress** | 4–6 (High) | 1–3 (Low) | Engaging without feeling pressured |
-| **Distress** | 1–3 (Low) | 4–6 (High) | Pressured without meaningful engagement |
-| **Relaxed** | 1–3 (Low) | 1–3 (Low) | Low demand, low activation |
-| **Mixed** | 4–6 (High) | 4–6 (High) | High challenge and high pressure simultaneously |
+| Label | Opportunity | Pressure | Interpretation |
+|-------|:-----------:|:--------:|----------------|
+| `relax` | Low | Low | Low demand, low activation |
+| `eustress` | High | Low | Engaging without feeling pressured |
+| `distress` | Low | High | Pressured without meaningful engagement |
+| `eustress+distress` | High | High | High challenge and high pressure simultaneously |
 
 ---
 
 ## 5. Installation
 
+Python 3.10+ required.
+
 ```bash
-# Python 3.10+ required (uses X | Y union type hints)
 pip install -r requirements.txt
 ```
 
-`requirements.txt` pins the minimum versions:
+`requirements.txt`:
 ```
 pandas>=2.0
 numpy>=1.24
 scikit-learn>=1.4
+xgboost>=2.0
+tensorflow>=2.12
 ```
 
 ---
 
 ## 6. End-to-end workflow
 
-Once labels can be merged (see §10 for the current blocker), the full pipeline is three commands:
+The labeled dataset (`features_labeled_new.csv`) is already built and committed. Steps 1–3 are documented here for reference if re-running from raw data.
 
-### Step 1 — Generate survey labels
+### Step 1 — Classify EMA surveys
 
-Convert a raw Qualtrics CSV export into a labelled CSV:
+Convert a raw Qualtrics CSV export into a labelled survey CSV:
 
 ```bash
 python -m src.data.classify_survey \
@@ -166,143 +179,143 @@ python -m src.data.classify_survey \
     --output_dir data/survey/
 ```
 
-Output: `data/survey/<survey_filename>_labelled.csv`  
-This step is already complete for the current dataset.
+Handles both old text-format and new numeric-format Qualtrics exports.
 
-### Step 2 — Merge labels onto feature rows
+### Step 2 — Merge labels onto feature rows (per session)
 
-Attach a label to every physiological feature row whose timestamp falls within a survey response window:
+Attach a label to every feature row based on its block timestamp:
 
 ```bash
 python -m src.data.merge_labels \
-    --features  data/features/features_output_24hz.csv \
-    --labels    data/survey/Lighting_EMA_Main_April_6_2026_14.52_labelled.csv \
-    --output    data/features/features_labeled.csv
+    --features  data/features/1_suhail_M3X_Features_AllBlocks_output.xlsx \
+    --labels    data/survey/M3X_EMA_session1_Jun1_labelled.csv \
+    --output    data/features/features_labeled_session1.csv
+
+python -m src.data.merge_labels \
+    --features  data/features/2_suhail_M3X_Features_AllBlocks_output.xlsx \
+    --labels    data/survey/M3X_EMA_session2_Jun2_labelled.csv \
+    --output    data/features/features_labeled_session2.csv
 ```
 
-The script corrects the feature timestamps for the sensor's 30 s duty cycle (10 s ON, 20 s OFF) and assigns each feature row the label of the survey window that governs it. The first survey's StartDate is treated as `t = 0`; gaps between surveys are labelled with the next survey's label; rows after the last survey are marked `"Unknown"`.
+`Block_Start_s` / `Block_End_s` are real elapsed timestamps from MATLAB — no duty-cycle correction is applied.
 
-Optional flags for different sensor configurations:
-```
---duty-cycle  30   # total duty-cycle in seconds
---on-period   10   # sensor ON period per cycle in seconds
-```
+### Step 3 — Combine sessions
 
-The script prints a coverage summary:
-```
-Rows total : 860
-Labeled    : XXX  (XX.X%)
-Unknown    : YYY  (XX.X%)
+Offset session 2 Block IDs to avoid collision, then concatenate:
 
-Label distribution (labeled rows only):
-  Relaxed       ...
-  Distress      ...
-  ...
+```python
+import pandas as pd
+
+s1 = pd.read_csv("data/features/features_labeled_session1.csv")
+s2 = pd.read_csv("data/features/features_labeled_session2.csv")
+s2["Block_ID"] += s1["Block_ID"].max() + 1
+combined = pd.concat([s1, s2], ignore_index=True)
+combined = combined[combined["Label"] != "Unknown"]
+combined.to_csv("data/features/features_labeled_new.csv", index=False)
 ```
 
-### Step 3 — Train and evaluate
+### Step 4 — Train and evaluate
 
 ```bash
-python train.py --data data/features/features_labeled.csv
+# All four models
+python train.py --data data/features/features_labeled_new.csv
+
+# Specific models only
+python train.py --data data/features/features_labeled_new.csv --models svm rf
+
+# Custom output directory
+python train.py --data data/features/features_labeled_new.csv --models xgb --output_dir results/xgb_tuned
 ```
 
-Optional flags:
-```
---n_folds     5        # number of CV folds (default from config.py)
---output_dir  results  # where to write result CSVs
+### Step 5 — Tune hyperparameters (optional)
+
+```bash
+python tune.py \
+    --data    data/features/features_labeled_new.csv \
+    --models  svm \
+    --n-iter  40
 ```
 
-The script prints per-fold accuracy, per-class precision/recall/F1 (pooled over folds), a confusion matrix, and a side-by-side model comparison table. Results CSVs are written to `results/`.
+Best params are written to `results/best_params.txt`. Update `config.py` with the new values and re-run `train.py`.
+
+### Run tests
+
+```bash
+pytest tests/ -v
+```
+
+52 tests covering EMA classification logic and label merging logic.
 
 ---
 
-## 7. Design decisions — bias prevention
+## 7. Baseline results
+
+All models trained on `data/features/features_labeled_new.csv` with 5-fold Stratified Group Cross-Validation (`Block_ID` as group — prevents sub-window leakage).
+
+| Model | Accuracy | F1 Macro | Notes |
+|-------|:--------:|:--------:|-------|
+| **XGBoost** | **78.6%** ± 1.8% | **0.766** ± 0.018 | Best overall |
+| Random Forest | 74.5% ± 2.8% | 0.700 ± 0.030 | Pre-tuning |
+| SVM | 59.1% ± 2.7% | 0.510 ± 0.020 | Pre-tuning — params from old 3-class data |
+| CNN (1D) | 49.9% ± 2.3% | 0.449 ± 0.029 | Underperforms on hand-engineered features |
+
+**Per-class F1 for XGBoost (best model):**
+
+| Class | Precision | Recall | F1 |
+|-------|:---------:|:------:|:--:|
+| relax | 0.81 | 0.82 | 0.82 |
+| eustress+distress | 0.81 | 0.84 | 0.83 |
+| distress | 0.75 | 0.73 | 0.74 |
+| eustress | 0.71 | 0.65 | 0.68 |
+
+Serialized models and fold results are in `results/`.
+
+---
+
+## 8. Design decisions
 
 ### StratifiedGroupKFold
 
-Every `Window_10s` epoch contains three overlapping `SubWindow_3s` rows. Those sub-windows share physiological signal and are therefore **not independent observations**. If a random split placed some sub-windows of the same epoch in the training fold and others in the test fold, the model would effectively memorise part of a test window during training — a form of data leakage that inflates reported accuracy.
+Each 10 s recording block (`Block_ID`) produces two ~5 s sub-windows. Those sub-windows share physiological signal and are not independent. If a random split placed sub-windows from the same block in both the training and test folds, the model would partially memorise test windows during training.
 
-We prevent this using `StratifiedGroupKFold(groups=Window_10s)`:
+`StratifiedGroupKFold(groups=Block_ID)` prevents this: all sub-windows from the same block are always in the same fold. Class distribution is preserved proportionally across folds.
 
-- **Group constraint** — all sub-windows of the same 10-second epoch are always in the same fold.
-- **Stratified** — the class distribution (Eustress / Distress / Relaxed / Mixed) is preserved proportionally in each fold, preventing a fold from being dominated by a single label.
+### Scaler fitted per fold
 
-### Scaler fitted per fold, not upfront
+For models requiring scaling (SVM, CNN), `StandardScaler` is fitted exclusively on the training portion of each fold and applied to the test portion without refitting. Fitting on the full dataset before splitting would leak test-set statistics into normalisation.
 
-For the SVM (which is sensitive to feature scale), `StandardScaler` is fitted **exclusively on the training portion** of each fold, then applied to the test portion without refitting. Fitting the scaler on the full dataset before splitting would leak test-set statistics (mean, variance) into the normalisation step.
+### Class-balanced weights
 
-The Random Forest does not receive scaling at all — tree-based models are scale-invariant.
-
-### Class-balanced model weights
-
-Both models are initialised with `class_weight="balanced"`. This scales each class's loss contribution inversely to its frequency, preventing the majority class from dominating the decision boundary in an imbalanced dataset.
+SVM, RF, and CNN use `class_weight="balanced"` or equivalent sample weighting. XGBoost uses `compute_sample_weight("balanced")`. This prevents the majority class (`relax`, 36%) from dominating the decision boundary.
 
 ---
 
-## 8. Configuration
+## 9. Configuration
 
-All tunable constants live in `config.py`. Editing this file is the only change needed to adjust paths, hyperparameters, or the fold count.
+All tunable constants live in `config.py`.
 
 ```python
-# Cross-validation
 N_FOLDS = 5
 
-# SVM
-SVM_PARAMS = {"C": 1.0, "kernel": "rbf", "gamma": "scale", ...}
+SVM_PARAMS  = {"C": 6.552, "kernel": "rbf", "gamma": 0.3003, "class_weight": "balanced", ...}
+RF_PARAMS   = {"n_estimators": 406, "max_depth": 15, "min_samples_leaf": 3, ...}
+XGB_PARAMS  = {"n_estimators": 300, "max_depth": 4, "learning_rate": 0.05, ...}
+CNN_PARAMS  = {"filters_1": 32, "filters_2": 64, "dense_1": 128, "epochs": 200, "patience": 25, ...}
 
-# Random Forest
-RF_PARAMS = {"n_estimators": 200, "max_depth": None, ...}
+CLASSES = ["relax", "eustress", "distress", "eustress+distress"]
 ```
 
 ---
 
-## 9. Output artefacts
+## 10. Output artefacts
 
 | File | Description |
 |------|-------------|
-| `results/fold_results.csv` | Per-fold accuracy, F1 macro, F1 weighted for every model |
-| `results/RandomForest_feature_importances.csv` | Mean decrease in impurity for each feature, sorted descending |
-| `data/features/features_labeled.csv` | Merged feature + label dataset (created by merge_labels.py) |
-| `data/survey/*_labelled.csv` | Survey label files (created by classify_survey.py) |
-
----
-
-## 10. Remaining steps to complete the experiment
-
-| # | Step | Command / action | Status |
-|---|------|-----------------|--------|
-| 1 | Generate survey labels | `python -m src.data.classify_survey ...` | ✅ Done |
-| 2 | Merge labels onto feature rows | `python -m src.data.merge_labels ...` | ✅ Done |
-| 3 | Inspect label coverage and class balance | Review merge output summary | ✅ Done — see note below |
-| 4 | Train and evaluate models | `python train.py --data data/features/features_labeled.csv` | ⏳ Ready |
-| 5 | Review results and tune hyperparameters | Edit `config.py`, re-run `train.py` | ⏳ Waiting on step 4 |
-| 6 | Collect more survey data (recommended) | Run additional EMA sessions | ⬜ Optional but strongly advised |
-
-### Label coverage — current dataset
-
-After duty-cycle correction the feature timeline spans **t = 12 s – 8598 s** (≈ 2.4 hours). The survey span is **t = 0 s – 10 916 s** (3 h 1 m 56 s). Since the feature recording (8 610 s) is shorter than the survey span, **every feature row receives a label** via the forward-fill rule. The missing data is on the survey side: surveys 5–8 all fall after the recording ended and have no corresponding feature rows.
-
-| Label | Rows | % | Time region |
-|-------|-----:|--:|------------|
-| Mixed | 519 | 60.3% | t = 3416 – 8598 s — gap before survey 5 (forward-filled with survey 5's label) |
-| Distress | 197 | 22.9% | t = 912 – 2870 s — gap before survey 3 + survey 3 window |
-| Relaxed | 145 | 16.8% | t = 0 – 912 s and t = 2870 – 3416 s — surveys 1 & 2 region and gap + survey 4 |
-| Eustress | 0 | — | Survey 7 (Eustress) at t = 10 576 s is beyond the recording |
-
-**Per-survey status:**
-
-| Survey | Label | Time (relative) | Feature data |
-|--------|-------|----------------|-------------|
-| 1 | Relaxed | t = 0 – 28 s | covered |
-| 2 | Relaxed | t = 884 – 912 s | covered |
-| 3 | Distress | t = 2840 – 2870 s | covered |
-| 4 | Relaxed | t = 3396 – 3416 s | covered |
-| 5 | Mixed | t = 9768 – 9801 s | **no feature data** (recording ends 1170 s before this) |
-| 6 | Mixed | t = 10109 – 10137 s | **no feature data** |
-| 7 | Eustress | t = 10576 – 10598 s | **no feature data** |
-| 8 | Mixed | t = 10898 – 10916 s | **no feature data** |
-
-**Key observations:**
-- **No Eustress rows** — the only Eustress survey (survey 7) falls 1 978 s after the recording ends. A 4-class classifier cannot be trained on this session alone.
-- **Mixed is forward-filled from survey 5** — all 519 Mixed rows come from the ~5 180 s gap before survey 5. The actual survey 5 window starts 1 170 s after the recording ends; its label reaches back to cover the trailing portion of the recording.
-- **Recommendation** — collect additional EMA sessions whose recording windows extend into the later survey windows, particularly sessions that yield Eustress labels.
+| `results/<dir>/fold_results.csv` | Per-fold accuracy, F1 macro, F1 weighted for each model |
+| `results/<dir>/randomforest_model.pkl` | Serialized RF model |
+| `results/<dir>/svm_model.pkl` + `svm_scaler.pkl` | Serialized SVM + fitted scaler |
+| `results/<dir>/xgboost_model.pkl` | Serialized XGBoost model |
+| `results/<dir>/xgboost_model.onnx` | XGBoost in ONNX format |
+| `results/<dir>/cnn_1d_model.pkl` + `cnn_1d_scaler.pkl` | Serialized CNN + fitted scaler |
+| `results/cnn_baseline/cnn_1d_model.tflite` | CNN in TFLite format (float32, input: `[1, 38, 1]`, output: `[1, 4]`) |
+| `results/<dir>/RandomForest_feature_importances.csv` | Mean decrease in impurity per feature |
