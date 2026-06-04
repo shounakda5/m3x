@@ -7,10 +7,12 @@ ROOT         = Path(__file__).parent
 DATA_DIR     = ROOT / "data"
 SURVEY_DIR   = DATA_DIR / "survey"
 FEATURES_DIR = DATA_DIR / "features"
+RAW_DIR      = DATA_DIR / "raw"
 RESULTS_DIR  = ROOT / "results"
 
-FEATURES_FILE         = FEATURES_DIR / "features_output_24hz.csv"
-LABELED_FEATURES_FILE = FEATURES_DIR / "features_labeled_new.csv"  # created by merge_labels.py
+LABELED_FEATURES_FILE = FEATURES_DIR / "features_labeled_new.csv"
+RAW_SESSION1_FILE     = RAW_DIR / "session1_raw.csv"
+RAW_SESSION2_FILE     = RAW_DIR / "session2_raw.csv"
 
 # ---------------------------------------------------------------------------
 # Column roles
@@ -112,29 +114,53 @@ XGB_PARAMS = {
 }
 
 # ---------------------------------------------------------------------------
-# 1D CNN hyperparameters
-# Tuned for a small tabular dataset (~861 samples, 16 features, 3 classes).
-# Architecture: Conv1D × 2 → GlobalAvgPool → Dense × 3 → Softmax output.
+# 1D CNN on raw sensor data — hyperparameters
+#
+# Input shape : (RAW_WINDOW_SAMPLES, len(RAW_CHANNELS)) = (112, 9)
+# Architecture: 3 × Conv1D block → GlobalAvgPool → Dense head → Softmax
 # ---------------------------------------------------------------------------
-CNN_PARAMS = {
-    # Convolutional blocks
-    "filters_1":        32,     # filters in first Conv1D layer
-    "filters_2":        64,     # filters in second Conv1D layer
-    "kernel_size":      3,      # conv kernel width (features seen per filter)
-    "conv_dropout":     0.3,
 
-    # Fully-connected head (3 hidden + 1 output = 4 dense layers total)
-    "dense_1":          128,
-    "dense_2":          64,
-    "dense_3":          32,
-    "dense_dropout":    0.4,
+# Raw data windowing constants
+RAW_SAMPLING_HZ         = 25        # nominal M3X sampling rate
+RAW_WINDOW_S            = 4.5       # window duration in seconds
+RAW_WINDOW_SAMPLES      = 112       # = floor(RAW_WINDOW_S * RAW_SAMPLING_HZ)
+RAW_N_WINDOWS_PER_BURST = 2         # sub-windows per duty-cycle ON burst
+RAW_GAP_THRESHOLD_MS    = 1_000     # inter-sample gap (ms) that marks duty-cycle OFF
+RAW_MIN_BURST_S         = 8.0       # bursts shorter than this are discarded
+RAW_CHANNELS            = [         # 7 raw + 2 derived cross-LED differences
+    "LED1", "LED2", "LED3",
+    "Temp", "AccX", "AccY", "AccZ",
+    "LED3_LED1",    # LED3 - LED1
+    "LED3_LED2",    # LED3 - LED2
+]
+
+CNN_PARAMS = {
+    # Conv block 1  (temporal kernel spans ~280 ms at 25 Hz)
+    "filters_1":     32,
+    "kernel_1":       7,
+    "pool_1":         2,
+
+    # Conv block 2  (kernel spans ~200 ms)
+    "filters_2":     64,
+    "kernel_2":       5,
+    "pool_2":         2,
+
+    # Conv block 3  (kernel spans ~120 ms; GlobalAvgPool after)
+    "filters_3":    128,
+    "kernel_3":       3,
+
+    "conv_dropout":  0.25,
+
+    # FC head
+    "dense_1":       64,
+    "dense_dropout": 0.30,
 
     # Training
-    "learning_rate":    1e-3,
-    "batch_size":       32,
-    "epochs":           200,    # EarlyStopping will cut this short
-    "patience":         25,     # EarlyStopping patience
-    "validation_split": 0.15,
+    "learning_rate": 1e-3,
+    "batch_size":    32,
+    "epochs":        200,
+    "patience":      20,
+    "val_split":     0.15,
 
-    "random_state":     42,
+    "random_state":  42,
 }

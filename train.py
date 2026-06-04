@@ -1,5 +1,8 @@
 """
-train.py — Train SVM, Random Forest, XGBoost, and 1D CNN classifiers with stratified-group k-fold CV.
+train.py — Train SVM, Random Forest, and XGBoost classifiers on the
+           engineered feature dataset with stratified-group k-fold CV.
+
+           For the 1D CNN on raw sensor data use train_cnn.py instead.
 
 Usage
 -----
@@ -7,14 +10,10 @@ Usage
     python train.py --data data/features/features_labeled_new.csv --models svm rf
     python train.py --data data/features/features_labeled_new.csv --models svm rf --output_dir results/baseline
 
-The input CSV must be the output of src/data/merge_labels.py — i.e., the full
-feature matrix with an attached 'Label' column.  Run merge_labels.py first if
-you have not yet linked survey labels to the physiological features.
-
 Options
 -------
     --data        Path to the labeled feature CSV (required)
-    --models      Space-separated subset to train: svm rf xgb cnn (default: all four)
+    --models      Space-separated subset to train: svm rf xgb (default: all three)
     --n_folds     Number of CV folds (default: value in config.py)
     --output_dir  Directory for result CSVs (default: results/)
 """
@@ -30,7 +29,6 @@ from src.data.preprocess import load_labeled_dataset, extract_Xy, clean_features
 from src.models.svm_model  import SVMClassifier
 from src.models.rf_model   import RFClassifier
 from src.models.xgb_model  import XGBClassifier
-from src.models.cnn_model  import CNNClassifier
 from src.evaluation.cross_val import run_cross_val, aggregate_results
 from src.evaluation.metrics import (
     print_model_summary,
@@ -43,7 +41,6 @@ _ALL_MODELS = {
     "svm": SVMClassifier,
     "rf":  RFClassifier,
     "xgb": XGBClassifier,
-    "cnn": CNNClassifier,
 }
 
 

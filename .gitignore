@@ -11,6 +11,9 @@ email_thread_artifacts/
 *.h5
 *.h
 
+# Claude Code local settings
+.claude/settings.local.json
+
 # IDE / OS
 .vscode/
 .idea/
