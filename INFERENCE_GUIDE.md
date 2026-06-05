@@ -102,18 +102,85 @@ predicted_label = CLASS_NAMES[np.argmax(probs)]
 
 ### TFLite model details
 
-| Property | Value |
-|----------|-------|
-| Input shape | `(1, 112, 9)` |
-| Input dtype | `float32` |
-| Output shape | `(1, 4)` |
-| Output dtype | `float32` (softmax probabilities) |
-| File size | ~186 KB |
-| Quantization | None (float32) |
+Two files are available in `results/cnn_raw_baseline/`:
+
+| Property | Float32 | INT8 |
+|----------|---------|------|
+| File | `cnn_1d_model.tflite` | `cnn_1d_model_int8.tflite` |
+| Input shape | `(1, 112, 9)` | `(1, 112, 9)` |
+| Input dtype | `float32` | `int8` |
+| Output shape | `(1, 4)` | `(1, 4)` |
+| Output dtype | `float32` | `int8` |
+| File size | 186 KB | **61 KB** |
+| CV F1 Macro | 0.801 | 0.801 (no measurable loss) |
+
+The INT8 model is ~3x smaller with no accuracy loss. It is the recommended model for MCU deployment.
+
+---
+
+## 2a. INT8 TFLite inference (Python)
+
+```python
+import numpy as np
+import tensorflow as tf
+
+interpreter = tf.lite.Interpreter(
+    model_path="results/cnn_raw_baseline/cnn_1d_model_int8.tflite"
+)
+interpreter.allocate_tensors()
+
+inp_detail = interpreter.get_input_details()[0]
+out_detail = interpreter.get_output_details()[0]
+
+# Quantization parameters (hardcoded from the model -- do not re-derive)
+INP_SCALE      = 0.07942456007003784
+INP_ZERO_POINT = 13
+OUT_SCALE      = 0.00390625
+OUT_ZERO_POINT = -128
+
+# window_normalized: (112, 9) float32 -- after z-normalization
+inp_f32 = window_normalized.reshape(1, 112, 9).astype(np.float32)
+inp_i8  = np.clip(np.round(inp_f32 / INP_SCALE + INP_ZERO_POINT), -128, 127).astype(np.int8)
+
+interpreter.set_tensor(inp_detail["index"], inp_i8)
+interpreter.invoke()
+out_i8 = interpreter.get_tensor(out_detail["index"])[0]  # (4,) int8
+
+probs = (out_i8.astype(np.float32) - OUT_ZERO_POINT) * OUT_SCALE  # (4,) float32
+CLASS_NAMES = ["distress", "eustress", "eustress+distress", "relax"]
+predicted_label = CLASS_NAMES[np.argmax(probs)]
+```
+
+---
 
 ### MCU deployment notes (for Farhad)
 
-The model is float32 — if the target MCU has limited RAM, consider post-training INT8 quantization. INT8 reduces model size by ~4x and is supported by TFLite Micro; it requires a representative calibration dataset (~100 windows) and typically costs 1-2 F1 points.
+Use `cnn_1d_model_int8.tflite` — it is 61 KB vs 186 KB for the float32 version, with no measurable accuracy loss (0.801 F1 on both). This is the recommended file for TFLite Micro.
+
+**INT8 inference on-device (pseudocode):**
+```
+INP_SCALE      = 0.07942456
+INP_ZERO_POINT = 13
+OUT_SCALE      = 0.00390625
+OUT_ZERO_POINT = -128
+
+// After z-normalization (float):
+for each channel c in 0..8:
+    x_norm[c] = (x_raw[c] - mean[c]) / std[c]
+
+// Quantize input to int8:
+for each value v in window (112 x 9 values):
+    x_int8[v] = clamp(round(x_norm[v] / INP_SCALE) + INP_ZERO_POINT, -128, 127)
+
+// Run TFLite Micro inference on x_int8 -> output int8[4]
+
+// Dequantize output to float probabilities:
+for i in 0..3:
+    prob[i] = (output_int8[i] - OUT_ZERO_POINT) * OUT_SCALE
+
+predicted_class = argmax(prob)
+// 0=distress  1=eustress  2=eustress+distress  3=relax
+```
 
 The scaler stats (`mean`, `std`) are small arrays that can be hardcoded in firmware:
 - Each is shape `(1, 1, 9)` — 9 float values per array
