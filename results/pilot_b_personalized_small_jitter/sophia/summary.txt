@@ -1,0 +1,8 @@
+Sophia personalized SMALL CNN + baseline-jitter augmentation -- summary
+
+Real training windows: 1284  (+4 jittered copies each = 6420 total)
+CV accuracy / F1 macro (real windows only): 0.8661 / 0.8366
+
+Day5 (full session, 328 windows, never in training):
+  Accuracy vs ground truth: 0.4787
+  Prediction counts: {'eustress': 157, 'relax': 87, 'eustress+distress': 84}

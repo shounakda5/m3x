@@ -1,0 +1,2 @@
+participant_id,name,n_windows,n_channels,classes,missing_classes,n_params,float32_kb,int8_kb,cv_accuracy,cv_f1_macro,int8_vs_float32_agreement,estimated_arena_kb
+505,Sophia,1284,10,eustress|eustress+distress|relax,distress,46627,186.5,61.1,0.6798680784921425,0.6259902862444314,0.98,7.0

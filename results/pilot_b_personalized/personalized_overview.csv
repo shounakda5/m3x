@@ -1,0 +1,6 @@
+participant_id,name,n_windows,n_channels,classes,missing_classes,n_params,float32_kb,int8_kb,cv_accuracy,cv_f1_macro,int8_vs_float32_agreement,estimated_arena_kb
+501,Shuail,1482,9,distress|eustress|eustress+distress|relax,,46468,185.9,61.0,0.8238738738738739,0.8047717279848203,0.995,7.0
+502,Lehar,1117,9,eustress|eustress+distress|relax,distress,46403,185.7,61.0,0.8514533952594491,0.8246198963769193,0.99,7.0
+503,Emma,1729,9,distress|eustress|eustress+distress|relax,,46468,186.0,61.1,0.9236807407959994,0.6986931545215829,0.99,7.0
+504,Aisha,852,10,eustress|eustress+distress|relax,distress,46627,186.5,61.1,0.9519091847265224,0.8826554700087825,1.0,7.0
+505,Sophia,1284,10,eustress|eustress+distress|relax,distress,46627,186.5,61.1,0.9423876845609749,0.918171914260163,1.0,7.0

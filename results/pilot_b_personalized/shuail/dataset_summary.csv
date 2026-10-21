@@ -1,0 +1,4 @@
+participant_id,name,rel_path,survey_date,n_bursts_found,n_bursts_cropped_ringoff,n_bursts_kept,n_windows_labeled,n_windows_unknown_dropped,has_survey
+501,Shuail,2_Shuail_501/1_suhail_501.csv,2026-06-01,297,0,297,576,6,True
+501,Shuail,2_Shuail_501/2_suhail_501_6_2.csv,2026-06-02,431,0,431,677,0,True
+501,Shuail,2_Shuail_501/3_suhail_501_6_3.csv,2026-06-03,117,0,117,229,2,True

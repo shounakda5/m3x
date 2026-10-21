@@ -1,0 +1,20 @@
+Accuracy    : 0.8765
+F1 Macro    : 0.4928
+F1 Weighted : 0.8659
+
+                   precision    recall  f1-score   support
+
+            relax       0.50      0.50      0.50         4
+         eustress       0.91      0.96      0.93       141
+         distress       0.00      0.00      0.00         0
+eustress+distress       0.69      0.44      0.54        25
+
+         accuracy                           0.88       170
+        macro avg       0.52      0.48      0.49       170
+     weighted avg       0.86      0.88      0.87       170
+
+Confusion matrix (rows=true, cols=predicted)  classes=['relax', 'eustress', 'distress', 'eustress+distress']
+[[  2   2   0   0]
+ [  0 136   0   5]
+ [  0   0   0   0]
+ [  2  12   0  11]]

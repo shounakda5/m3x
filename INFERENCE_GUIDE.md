@@ -12,6 +12,7 @@ Two dataset variants exist for each model: unfiltered (all data) and motion-filt
 |-------|---------|----------|-------|-------------|
 | **CNN (1D, raw)** | Unfiltered | **Deployment -- best F1** | 112x9 raw windows | `cnn_raw_baseline/cnn_1d_model.tflite` |
 | CNN (1D, raw MF) | Motion-filtered | Comparative study | 112x9 raw windows | `cnn_raw_mf_baseline/cnn_1d_model.tflite` |
+| **Pilot B CNN (generalized)** | 5-participant cohort (Shuail/Lehar/Emma/Aisha/Sophia) | **Deployment for the new cohort** | 112x9 raw windows | `pilot_b_cnn/cnn_1d_model_int8.tflite` |
 | XGBoost | Unfiltered | Feature-based fallback | 38 features | `xgb_baseline/xgboost_model.onnx` |
 | XGBoost MF | Motion-filtered | Feature-based MF | 38 features | `xgb_mf_baseline/xgboost_model.onnx` |
 | Random Forest | Unfiltered | Feature-based fallback | 38 features | `baseline/randomforest_model.onnx` |
@@ -195,6 +196,95 @@ print("std:", s["std"].flatten().tolist())
 ```
 
 Windowing on-device: collect 112 consecutive samples from one duty-cycle ON burst, compute the 2 derived channels, normalize, and run inference. Two windows fit in a single ~10 s burst — run inference twice per burst if latency allows.
+
+---
+
+## 1b. Pilot B generalized CNN (5-participant cohort)
+
+Same architecture, same 112x9 raw-window input format, and the same channel order/preprocessing as the CNN above -- trained on `data/pliot_b/` (Shuail/501, Lehar/502, Emma/503, Aisha/504, Sophia/505) instead of the original two sessions. Use this model for the Pilot B cohort; use `cnn_raw_baseline` for the original two-session data. Aisha and Sophia's devices have a humidity sensor, but this model uses the standard 9-channel schema (no humidity) for a uniform input across all five participants -- humidity is only used in their personalized models (section 1c below).
+
+Files are in `results/pilot_b_cnn/`:
+
+| Property | Float32 | INT8 (recommended for MCU) |
+|----------|---------|------|
+| File | `cnn_1d_model.tflite` | `cnn_1d_model_int8.tflite` |
+| Input shape | `(1, 112, 9)` | `(1, 112, 9)` |
+| Input dtype | `float32` | `int8` |
+| Output shape | `(1, 4)` | `(1, 4)` |
+| Output dtype | `float32` | `int8` |
+| File size (flash) | 185.9 KB | **61.0 KB** |
+| Aisha-holdout accuracy | 0.8765 | 0.8824 (no meaningful loss) |
+
+**Estimated RAM (tensor arena):** ~7.0 KB peak, largest single activation tensor 3.5 KB -- see `results/pilot_b_cnn/int8_quantization_report.txt` for the method and its caveats (it's a best-effort simulation of a greedy memory planner over the model's own execution graph, not a measurement on real hardware). Confirm with `interpreter.arena_used_bytes()` on the actual target before final sign-off.
+
+**INT8 inference (Python)** -- identical pattern to the section above, with these values:
+
+```python
+import numpy as np
+import tensorflow as tf
+
+scaler = np.load("results/pilot_b_cnn/cnn_1d_scaler.npz")
+mean, std = scaler["mean"], scaler["std"]
+
+interpreter = tf.lite.Interpreter(model_path="results/pilot_b_cnn/cnn_1d_model_int8.tflite")
+interpreter.allocate_tensors()
+inp_detail = interpreter.get_input_details()[0]
+out_detail = interpreter.get_output_details()[0]
+
+INP_SCALE      = 0.04210300
+INP_ZERO_POINT = 10
+OUT_SCALE      = 0.00390625
+OUT_ZERO_POINT = -128
+
+# window: (112, 9) float32 raw sensor values, channel order per "Channel order" above
+window_normalized = (window - mean) / std
+inp_i8 = np.clip(np.round(window_normalized.reshape(1, 112, 9) / INP_SCALE + INP_ZERO_POINT), -128, 127).astype(np.int8)
+
+interpreter.set_tensor(inp_detail["index"], inp_i8)
+interpreter.invoke()
+out_i8 = interpreter.get_tensor(out_detail["index"])[0]
+
+probs = (out_i8.astype(np.float32) - OUT_ZERO_POINT) * OUT_SCALE
+CLASS_NAMES = ["distress", "eustress", "eustress+distress", "relax"]
+predicted_label = CLASS_NAMES[np.argmax(probs)]
+```
+
+To regenerate the INT8 export (e.g. after retraining on more Pilot B data): `python quantize_pilot_b_cnn.py`. Full training/validation results are in `results/pilot_b_cnn/PILOT_B_SUMMARY.md`.
+
+### Smaller variant, if flash/RAM is tighter
+
+`results/pilot_b_cnn_small/` has a second Pilot B model for MCUs that can't fit the one above: 2 conv blocks (16/32 filters) with no Dense hidden layer, 3,940 params vs 46,468.
+
+| | Full (`pilot_b_cnn/`) | Small (`pilot_b_cnn_small/`) |
+|---|---:|---:|
+| INT8 flash size | 61.0 KB | **11.0 KB** |
+| Estimated RAM (tensor arena) | ~7.0 KB | **~3.5 KB** |
+| General CV accuracy / F1 macro | 0.8106 / 0.7853 | 0.7996 / 0.7730 (essentially tied) |
+| Aisha-holdout accuracy / F1 macro (INT8) | 0.8824 / 0.5141 | 0.8647 / 0.3287 |
+
+Same input format, same channel order, same preprocessing, same class mapping -- only the file paths and quantization params differ:
+
+```
+Input  scale=0.04210300  zero_point=10
+Output scale=0.00390625  zero_point=-128
+```
+
+(coincidentally identical to the full model's, since both were quantized from the same calibration pool and z-normalized inputs land in a similar range -- verify against your own `int8_quantization_report.txt` if you retrain either model). This round, the full model pulls meaningfully ahead on Aisha-holdout F1 macro (0.51 vs 0.33) -- the small model's limited capacity leans harder on the `eustress` majority class and recovers less of her `eustress+distress` responses. Pick the full model if Aisha-like generalization matters more than footprint; pick the small model if flash/RAM is the binding constraint -- it still costs little on general cross-participant accuracy. Full comparison in `results/pilot_b_cnn/PILOT_B_SUMMARY.md`.
+
+To retrain/re-export the small model: `python train_pilot_b_cnn_small.py`.
+
+### Personalized models (one per participant)
+
+`results/pilot_b_personalized/<name>/` has a separate model trained only on each person's own data, for cases where a per-person model outperforms the generalized one for that person (it does, substantially -- see `results/pilot_b_personalized/PERSONALIZED_SUMMARY.md`).
+
+**Read this before wiring up firmware for a specific person -- these models are NOT interchangeable:**
+
+- Aisha's and Sophia's models take a **10-channel** input (`LED1, LED2, LED3, Temp, Humidity, AccX, AccY, AccZ, LED3_LED1, LED3_LED2`) because their devices have a humidity sensor the others' don't. Shuail, Lehar, and Emma's models take the standard 9 channels. Don't feed a 10-channel person's windows into a 9-channel person's model or vice versa.
+- Lehar, Aisha, and Sophia never reported "distress" in their data, so their models only output **3 classes** (`eustress, eustress+distress, relax`) instead of 4, in that alphabetical order. Shuail and Emma's models output the full 4 classes (`distress, eustress, eustress+distress, relax`). Each participant's exact class order and quantization params are in their own `int8_quantization_report.txt` -- always read the specific person's report rather than assuming one mapping fits all five.
+
+Everything else (windowing, preprocessing, z-normalization, INT8 inference pattern) is identical to the sections above -- just point at `results/pilot_b_personalized/<name>/cnn_1d_model_int8.tflite` and that person's own scaler and class list.
+
+To retrain: `python train_personalized_cnn.py`.
 
 ---
 
