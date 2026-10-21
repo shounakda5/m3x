@@ -1,0 +1,84 @@
+{
+  "task": "classification",
+  "participant": "ring01_pid104",
+  "lineage": "all_continuous",
+  "created_at": "2026-10-21T15:36:38.516658+00:00",
+  "git_commit": "8607bad862fff3fb090ebb0e1e725e87b3d30ba4",
+  "n_windows": 4528,
+  "n_groups": 43,
+  "n_windows_dropped": 0,
+  "classes": [
+    "relax",
+    "eustress",
+    "distress",
+    "eustress+distress"
+  ],
+  "n_folds": 5,
+  "tuned": true,
+  "tune_log": [
+    {
+      "candidate": 0,
+      "override": {},
+      "val_f1_macro": 0.2439643463877969
+    },
+    {
+      "candidate": 1,
+      "override": {
+        "learning_rate": 0.0005
+      },
+      "val_f1_macro": 0.25467922134506027
+    },
+    {
+      "candidate": 2,
+      "override": {
+        "dense_1": 32,
+        "conv_dropout": 0.35,
+        "dense_dropout": 0.4
+      },
+      "val_f1_macro": 0.2570466185358099
+    },
+    {
+      "candidate": 3,
+      "override": {
+        "filters_1": 24,
+        "filters_2": 48,
+        "filters_3": 96,
+        "learning_rate": 0.0005
+      },
+      "val_f1_macro": 0.22671512875363387
+    }
+  ],
+  "best_params": {
+    "filters_1": 32,
+    "kernel_1": 7,
+    "pool_1": 2,
+    "filters_2": 64,
+    "kernel_2": 5,
+    "pool_2": 2,
+    "filters_3": 128,
+    "kernel_3": 3,
+    "conv_dropout": 0.35,
+    "dense_1": 32,
+    "dense_dropout": 0.4,
+    "learning_rate": 0.001,
+    "batch_size": 32,
+    "epochs": 200,
+    "patience": 20,
+    "val_split": 0.15,
+    "random_state": 42
+  },
+  "cv_metrics": {
+    "accuracy_mean": 0.5883193438113767,
+    "accuracy_std": 0.03583404521024375,
+    "f1_macro_mean": 0.29349313794815385,
+    "f1_macro_std": 0.022397533188867554,
+    "f1_weighted_mean": 0.5992480205637671,
+    "f1_weighted_std": 0.02899096526520679
+  },
+  "final_model": {
+    "float32_tflite_kb": 168.4,
+    "int8_tflite_kb": 55.8,
+    "float32_vs_int8_agreement": 0.955,
+    "estimated_arena_kb": 7.0
+  }
+}

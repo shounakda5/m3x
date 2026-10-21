@@ -1,0 +1,17 @@
+Pilot Phase C regressor -- ring01_pid104/labeled_last5min -- INT8 quantization report
+
+Target: Stress_0to100, z-scored for training (mean=40.770, std=16.120) -- model output is in that scaled space; invert with y = scaled*std + mean to get a 0-100 score.
+Trainable params  : 46049
+Float32 file size : 184.0 KB
+INT8 file size    : 60.3 KB
+
+Float32 vs INT8 mean abs. difference in real stress units (n=200, own training data, NOT a generalization check): 0.279
+
+Quantization parameters (hardcode in firmware):
+  Input  scale=0.06552903  zero_point=45
+  Output scale=0.01420120  zero_point=13  (output is still in z-scored space -- invert with target_mean/target_std above)
+
+Estimated RAM (tensor arena) -- best-effort, see common.py's estimate_tensor_arena caveat:
+  Estimated peak arena       : 7.00 KB
+  Largest single activation  : 3.50 KB
+  Total weight bytes (flash) : 44.11 KB

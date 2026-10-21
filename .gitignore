@@ -11,6 +11,11 @@ email_thread_artifacts/
 *.h5
 *.h
 
+# PilotPhaseC windowed-dataset cache — pure derived cache of the raw Excel
+# files (also committed), regenerated in seconds by src/loader.py; keeping
+# it out of git avoids redundant bloat
+PilotPhaseC/data/dataset/**/*.npz
+
 # Claude Code local settings
 .claude/settings.local.json
 
