@@ -1,0 +1,16 @@
+Accuracy    : 0.9589
+F1 Macro    : 0.9377
+F1 Weighted : 0.9597
+
+                                                                          precision    recall  f1-score   support
+
+           Cognitive strain, including cognitive overload or distraction       0.86      0.95      0.90       168
+Mental capacity, including recovery, attention, and cognitive processing       0.99      0.96      0.97       684
+
+                                                                accuracy                           0.96       852
+                                                               macro avg       0.92      0.96      0.94       852
+                                                            weighted avg       0.96      0.96      0.96       852
+
+Confusion matrix (rows=true, cols=predicted)  classes=['Cognitive strain, including cognitive overload or distraction', 'Mental capacity, including recovery, attention, and cognitive processing']
+[[160   8]
+ [ 27 657]]

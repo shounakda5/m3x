@@ -1,0 +1,5 @@
+participant_id,name,rel_path,survey_date,n_bursts_found,n_bursts_cropped_ringoff,n_bursts_kept,n_windows_labeled,n_windows_unknown_dropped,has_survey
+505,Sophia,6_Sophia_505/Sophia_day1.csv,2026-07-27,275,0,275,272,2,True
+505,Sophia,6_Sophia_505/Sophia_day2.csv,2026-07-29,346,0,346,344,0,True
+505,Sophia,6_Sophia_505/sophia_day3.csv,2026-08-05,331,0,331,328,0,True
+505,Sophia,6_Sophia_505/sophia_day4.csv,2026-08-06,346,0,346,340,1,True

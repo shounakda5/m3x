@@ -1,0 +1,7 @@
+Pilot B Mental-States labeling experiment -- INT8 quantization report
+
+Trainable params  : 46338
+Float32 file size : 185.4 KB
+INT8 file size    : 60.8 KB
+Estimated RAM (tensor arena): 7.00 KB
+Largest single activation  : 3.50 KB
