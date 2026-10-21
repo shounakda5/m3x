@@ -1,2 +1,0 @@
-participant_id,name,n_windows,n_channels,classes,missing_classes,n_params,float32_kb,int8_kb,cv_accuracy,cv_f1_macro,int8_vs_float32_agreement,estimated_arena_kb
-504,Aisha,852,10,"Cognitive strain, including cognitive overload or distraction|Mental capacity, including recovery, attention, and cognitive processing",,46562,186.2,61.1,0.9589060887512899,0.9377567421499309,0.995,7.0

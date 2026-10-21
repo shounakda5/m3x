@@ -1,4 +1,0 @@
-participant_id,name,rel_path,survey_date,n_bursts_found,n_bursts_cropped_ringoff,n_bursts_kept,n_windows_labeled,n_windows_unknown_dropped,has_survey
-504,Aisha,5_Aisha_504/Aisha_day1.csv,2026-07-23,242,0,242,241,0,True
-504,Aisha,5_Aisha_504/Aisha_day2.csv,2026-07-24,356,0,356,285,66,True
-504,Aisha,5_Aisha_504/Aisha_day4.csv,2026-07-29,362,2,360,326,29,True

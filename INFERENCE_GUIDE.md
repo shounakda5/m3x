@@ -201,9 +201,9 @@ Windowing on-device: collect 112 consecutive samples from one duty-cycle ON burs
 
 ## 1b. Pilot B generalized CNN (5-participant cohort)
 
-Same architecture, same 112x9 raw-window input format, and the same channel order/preprocessing as the CNN above -- trained on `data/pliot_b/` (Shuail/501, Lehar/502, Emma/503, Aisha/504, Sophia/505) instead of the original two sessions. Use this model for the Pilot B cohort; use `cnn_raw_baseline` for the original two-session data. Aisha and Sophia's devices have a humidity sensor, but this model uses the standard 9-channel schema (no humidity) for a uniform input across all five participants -- humidity is only used in their personalized models (section 1c below).
+Same architecture, same 112x9 raw-window input format, and the same channel order/preprocessing as the CNN above -- trained on `pilot_b/data/raw/` (Shuail/501, Lehar/502, Emma/503, Aisha/504, Sophia/505) instead of the original two sessions. Use this model for the Pilot B cohort; use `cnn_raw_baseline` for the original two-session data. Aisha and Sophia's devices have a humidity sensor, but this model uses the standard 9-channel schema (no humidity) for a uniform input across all five participants -- humidity is only used in their personalized models (section 1c below).
 
-Files are in `results/pilot_b_cnn/`:
+Files are in `pilot_b/results/cnn_generalized/`:
 
 | Property | Float32 | INT8 (recommended for MCU) |
 |----------|---------|------|
@@ -215,7 +215,7 @@ Files are in `results/pilot_b_cnn/`:
 | File size (flash) | 185.9 KB | **61.0 KB** |
 | Aisha-holdout accuracy | 0.8765 | 0.8824 (no meaningful loss) |
 
-**Estimated RAM (tensor arena):** ~7.0 KB peak, largest single activation tensor 3.5 KB -- see `results/pilot_b_cnn/int8_quantization_report.txt` for the method and its caveats (it's a best-effort simulation of a greedy memory planner over the model's own execution graph, not a measurement on real hardware). Confirm with `interpreter.arena_used_bytes()` on the actual target before final sign-off.
+**Estimated RAM (tensor arena):** ~7.0 KB peak, largest single activation tensor 3.5 KB -- see `pilot_b/results/cnn_generalized/int8_quantization_report.txt` for the method and its caveats (it's a best-effort simulation of a greedy memory planner over the model's own execution graph, not a measurement on real hardware). Confirm with `interpreter.arena_used_bytes()` on the actual target before final sign-off.
 
 **INT8 inference (Python)** -- identical pattern to the section above, with these values:
 
@@ -223,10 +223,10 @@ Files are in `results/pilot_b_cnn/`:
 import numpy as np
 import tensorflow as tf
 
-scaler = np.load("results/pilot_b_cnn/cnn_1d_scaler.npz")
+scaler = np.load("pilot_b/results/cnn_generalized/cnn_1d_scaler.npz")
 mean, std = scaler["mean"], scaler["std"]
 
-interpreter = tf.lite.Interpreter(model_path="results/pilot_b_cnn/cnn_1d_model_int8.tflite")
+interpreter = tf.lite.Interpreter(model_path="pilot_b/results/cnn_generalized/cnn_1d_model_int8.tflite")
 interpreter.allocate_tensors()
 inp_detail = interpreter.get_input_details()[0]
 out_detail = interpreter.get_output_details()[0]
@@ -249,13 +249,13 @@ CLASS_NAMES = ["distress", "eustress", "eustress+distress", "relax"]
 predicted_label = CLASS_NAMES[np.argmax(probs)]
 ```
 
-To regenerate the INT8 export (e.g. after retraining on more Pilot B data): `python quantize_pilot_b_cnn.py`. Full training/validation results are in `results/pilot_b_cnn/PILOT_B_SUMMARY.md`.
+To regenerate the INT8 export (e.g. after retraining on more Pilot B data): `python pilot_b/src/quantize.py`. Full training/validation results are in `pilot_b/results/cnn_generalized/PILOT_B_SUMMARY.md`.
 
 ### Smaller variant, if flash/RAM is tighter
 
-`results/pilot_b_cnn_small/` has a second Pilot B model for MCUs that can't fit the one above: 2 conv blocks (16/32 filters) with no Dense hidden layer, 3,940 params vs 46,468.
+`pilot_b/results/cnn_small/` has a second Pilot B model for MCUs that can't fit the one above: 2 conv blocks (16/32 filters) with no Dense hidden layer, 3,940 params vs 46,468.
 
-| | Full (`pilot_b_cnn/`) | Small (`pilot_b_cnn_small/`) |
+| | Full (`cnn_generalized/`) | Small (`cnn_small/`) |
 |---|---:|---:|
 | INT8 flash size | 61.0 KB | **11.0 KB** |
 | Estimated RAM (tensor arena) | ~7.0 KB | **~3.5 KB** |
@@ -269,22 +269,22 @@ Input  scale=0.04210300  zero_point=10
 Output scale=0.00390625  zero_point=-128
 ```
 
-(coincidentally identical to the full model's, since both were quantized from the same calibration pool and z-normalized inputs land in a similar range -- verify against your own `int8_quantization_report.txt` if you retrain either model). This round, the full model pulls meaningfully ahead on Aisha-holdout F1 macro (0.51 vs 0.33) -- the small model's limited capacity leans harder on the `eustress` majority class and recovers less of her `eustress+distress` responses. Pick the full model if Aisha-like generalization matters more than footprint; pick the small model if flash/RAM is the binding constraint -- it still costs little on general cross-participant accuracy. Full comparison in `results/pilot_b_cnn/PILOT_B_SUMMARY.md`.
+(coincidentally identical to the full model's, since both were quantized from the same calibration pool and z-normalized inputs land in a similar range -- verify against your own `int8_quantization_report.txt` if you retrain either model). This round, the full model pulls meaningfully ahead on Aisha-holdout F1 macro (0.51 vs 0.33) -- the small model's limited capacity leans harder on the `eustress` majority class and recovers less of her `eustress+distress` responses. Pick the full model if Aisha-like generalization matters more than footprint; pick the small model if flash/RAM is the binding constraint -- it still costs little on general cross-participant accuracy. Full comparison in `pilot_b/results/cnn_generalized/PILOT_B_SUMMARY.md`.
 
-To retrain/re-export the small model: `python train_pilot_b_cnn_small.py`.
+To retrain/re-export the small model: `python pilot_b/src/train_generalized_small.py`.
 
 ### Personalized models (one per participant)
 
-`results/pilot_b_personalized/<name>/` has a separate model trained only on each person's own data, for cases where a per-person model outperforms the generalized one for that person (it does, substantially -- see `results/pilot_b_personalized/PERSONALIZED_SUMMARY.md`).
+`pilot_b/results/personalized/<name>/` has a separate model trained only on each person's own data, for cases where a per-person model outperforms the generalized one for that person (it does, substantially -- see `pilot_b/results/personalized/PERSONALIZED_SUMMARY.md`).
 
 **Read this before wiring up firmware for a specific person -- these models are NOT interchangeable:**
 
 - Aisha's and Sophia's models take a **10-channel** input (`LED1, LED2, LED3, Temp, Humidity, AccX, AccY, AccZ, LED3_LED1, LED3_LED2`) because their devices have a humidity sensor the others' don't. Shuail, Lehar, and Emma's models take the standard 9 channels. Don't feed a 10-channel person's windows into a 9-channel person's model or vice versa.
 - Lehar, Aisha, and Sophia never reported "distress" in their data, so their models only output **3 classes** (`eustress, eustress+distress, relax`) instead of 4, in that alphabetical order. Shuail and Emma's models output the full 4 classes (`distress, eustress, eustress+distress, relax`). Each participant's exact class order and quantization params are in their own `int8_quantization_report.txt` -- always read the specific person's report rather than assuming one mapping fits all five.
 
-Everything else (windowing, preprocessing, z-normalization, INT8 inference pattern) is identical to the sections above -- just point at `results/pilot_b_personalized/<name>/cnn_1d_model_int8.tflite` and that person's own scaler and class list.
+Everything else (windowing, preprocessing, z-normalization, INT8 inference pattern) is identical to the sections above -- just point at `pilot_b/results/personalized/<name>/cnn_1d_model_int8.tflite` and that person's own scaler and class list.
 
-To retrain: `python train_personalized_cnn.py`.
+To retrain: `python pilot_b/src/train_personalized.py`.
 
 ---
 

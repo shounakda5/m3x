@@ -1,8 +1,0 @@
-Sophia personalized SMALL CNN + day5 augmentation -- summary
-
-Combined training set: 1448 windows (1284 original + 164 from day5 train-half)
-Combined-set CV accuracy / F1 macro: 0.9517 / 0.9282
-
-HELD-OUT day5 test half (164 windows, never seen in training):
-  Accuracy vs ground truth (eustress): 0.9695
-  Prediction counts: {'eustress': 159, 'relax': 5}

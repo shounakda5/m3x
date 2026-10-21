@@ -1,5 +1,0 @@
-participant_id,name,rel_path,survey_date,n_bursts_found,n_bursts_cropped_ringoff,n_bursts_kept,n_windows_labeled,n_windows_unknown_dropped,has_survey
-503,Emma,4_EMMA_503/EMMA/emma_d1.csv,2026-07-07,174,0,174,321,24,True
-503,Emma,4_EMMA_503/EMMA/emma_d2.csv,2026-07-08,515,297,218,430,0,True
-503,Emma,4_EMMA_503/EMMA/emma_d4.csv,2026-07-10,657,385,272,523,0,True
-503,Emma,4_EMMA_503/EMMA/emma_d5.csv,2026-07-13,670,383,287,455,0,True

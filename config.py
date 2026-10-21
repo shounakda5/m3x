@@ -138,22 +138,6 @@ RAW_CHANNELS            = [         # 7 raw + 2 derived cross-LED differences
     "LED3_LED2",    # LED3 - LED2
 ]
 
-# ---------------------------------------------------------------------------
-# Pilot B — new 4-participant cohort, raw-only (no MATLAB features)
-# ---------------------------------------------------------------------------
-PILOT_B_FLATLINE_FRACTION      = 0.10   # burst Acc_Total_STD below this fraction
-                                         # of the participant's baseline median
-                                         # counts as "ring not worn"
-PILOT_B_FLATLINE_MIN_BURSTS    = 2      # min consecutive trailing flatlined
-                                         # bursts required to crop the tail
-PILOT_B_MIN_BURST_S            = 4.0    # Aisha's device duty-cycles at ~5s ON
-                                         # (everyone else is ~10s ON) -- use a
-                                         # lower floor than RAW_MIN_BURST_S so
-                                         # her single-half bursts aren't dropped
-PILOT_B_AISHA_HOLDOUT_FRACTION = 0.20   # fraction of Aisha's bursts held out
-                                         # entirely from training
-PILOT_B_RANDOM_STATE           = 42
-
 CNN_PARAMS = {
     # Conv block 1  (temporal kernel spans ~280 ms at 25 Hz)
     "filters_1":     32,
