@@ -7,6 +7,8 @@ A machine-learning pipeline that classifies momentary stress states from M3X rin
 
 Part of a workplace lighting EMA (Ecological Momentary Assessment) study at USC.
 
+> **AI assistants**: read [`AI_AGENT_GUIDE.md`](AI_AGENT_GUIDE.md) first — it maps the whole repo (original pipeline, `pilot_b/`, `PilotPhaseC/`) and covers implementation detail not written down elsewhere.
+
 ---
 
 ## Table of contents
