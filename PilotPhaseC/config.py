@@ -58,7 +58,9 @@ PARTICIPANTS = {
 #                        instead of re-deriving window boundaries from the
 #                        0->111 reset pattern, since it's already provided
 #                        and already validated)
-#   I-P                  the 8 feature channels (RAW_CHANNELS below)
+#   I-P                  the 8 sensor columns from Excel (RAW_CHANNELS below);
+#                        two derived cross-LED diffs are computed in loader.py
+#                        (DERIVED_CHANNELS) for MODEL_CHANNELS fed to the CNN
 #   R  Survey_ID         NOT part of the user's column spec, but required:
 #                        groups every window belonging to the same labeling
 #                        interval together, so temporally-adjacent (highly
@@ -75,12 +77,17 @@ WINDOW_ID_COL     = "Global_Window"
 GROUP_COL         = "Survey_ID"
 CLASS_LABEL_COL   = "Label"
 REGRESSION_LABEL_COL = "Stress_0to100"
+PERIOD_COL = "Period"  # optional in Excel; used for training weights on all_continuous
 
 RAW_CHANNELS = [
     "LED1", "LED2", "LED3",
     "TempC_x100", "HumidityRH_x100",
     "AccX_mg", "AccY_mg", "AccZ_mg",
 ]
+
+# Per-sample cross-LED differences (same convention as root train_cnn / pilot_b)
+DERIVED_CHANNELS = ["LED3_LED1", "LED3_LED2"]
+MODEL_CHANNELS = RAW_CHANNELS + DERIVED_CHANNELS  # CNN input: (112, 10)
 
 # ---------------------------------------------------------------------------
 # Label taxonomy (verified present in the Ring_01_PID_104 data; order
@@ -94,6 +101,28 @@ CLASSES = ["relax", "eustress", "distress", "eustress+distress"]
 # ---------------------------------------------------------------------------
 N_FOLDS       = 5
 RANDOM_STATE  = 42
+VAL_GROUP_FRACTION = 0.15  # early-stopping holdout: fraction of Survey_ID groups
+
+# Per-window training multipliers (× survey-equal weights). All weights 1.0:
+# window labels are treated as authoritative everywhere they appear.
+LINEAGE_PERIOD_WEIGHTS = {
+    "all_continuous": {
+        "current_5min": 1.0,
+        "past_5to30min": 1.0,
+        "before_30to60min": 1.0,
+        "baseline_since_previous_survey": 1.0,
+    },
+    "labeled_last5min": {
+        "current_5min": 1.0,
+        "baseline_since_previous_survey": 1.0,
+    },
+}
+DEFAULT_PERIOD_WEIGHT = 1.0
+
+# Training policy (fixed for this phase)
+CLASSIFIER_SURVEY_EQUAL_WEIGHTS = False
+CLASSIFIER_CLASS_BALANCED_WEIGHTS = True
+REGRESSOR_SURVEY_EQUAL_WEIGHTS = False
 
 # ---------------------------------------------------------------------------
 # CNN hyperparameters -- shared conv backbone for both the classifier and

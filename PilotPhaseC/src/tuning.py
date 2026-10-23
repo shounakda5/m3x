@@ -34,6 +34,7 @@ from PilotPhaseC.config import CLASSES, TUNE_GRID, TUNE_EPOCHS, TUNE_PATIENCE, R
 from PilotPhaseC.src.common import (
     fit_channel_scaler, apply_channel_scaler,
     fit_target_scaler, apply_target_scaler, invert_target_scaler,
+    classifier_sample_weights, regressor_sample_weights,
 )
 from PilotPhaseC.src.models import CNNClassifier, CNNRegressor
 
@@ -45,35 +46,50 @@ def _val_split(groups, random_state):
     return tr_idx, va_idx
 
 
-def tune_classifier(X, y, groups, base_params: dict, random_state: int = RANDOM_STATE) -> tuple[dict, list[dict]]:
+def tune_classifier(
+    X, y, groups, base_params: dict, random_state: int = RANDOM_STATE,
+    period=None, lineage: str | None = None,
+) -> tuple[dict, list[dict]]:
     tr_idx, va_idx = _val_split(groups, random_state)
     X_tr, X_va = X[tr_idx], X[va_idx]
     y_tr, y_va = y[tr_idx], y[va_idx]
+    g_tr, g_va = groups[tr_idx], groups[va_idx]
+    p_tr = period[tr_idx] if period is not None else None
 
     mean, std = fit_channel_scaler(X_tr)
     X_tr_s = apply_channel_scaler(X_tr, mean, std)
     X_va_s = apply_channel_scaler(X_va, mean, std)
+
+    sw_tr = classifier_sample_weights(g_tr, y_tr, p_tr, lineage)
 
     log = []
     best_params, best_score = None, -1.0
     for i, override in enumerate(TUNE_GRID):
         params = {**base_params, **override}
         model = CNNClassifier(params)
-        model.fit(X_tr_s, y_tr, epochs=TUNE_EPOCHS, patience=TUNE_PATIENCE)
+        model.fit(
+            X_tr_s, y_tr, epochs=TUNE_EPOCHS, patience=TUNE_PATIENCE,
+            sample_weight=sw_tr, groups=g_tr,
+        )
         y_pred = model.predict(X_va_s)
         score = f1_score(y_va, y_pred, average="macro", labels=CLASSES, zero_division=0)
-        log.append({"candidate": i, "override": override, "val_f1_macro": score})
-        print(f"    [tune] candidate {i} {override or '(defaults)'} -> val F1 macro = {score:.4f}")
+        log.append({"candidate": i, "override": override, "val_f1_macro_window": score})
+        print(f"    [tune] candidate {i} {override or '(defaults)'} -> window val F1 macro = {score:.4f}")
         if score > best_score:
             best_score, best_params = score, params
 
     return best_params, log
 
 
-def tune_regressor(X, y, groups, base_params: dict, random_state: int = RANDOM_STATE) -> tuple[dict, list[dict]]:
+def tune_regressor(
+    X, y, groups, base_params: dict, random_state: int = RANDOM_STATE,
+    period=None, lineage: str | None = None,
+) -> tuple[dict, list[dict]]:
     tr_idx, va_idx = _val_split(groups, random_state)
     X_tr, X_va = X[tr_idx], X[va_idx]
     y_tr, y_va = y[tr_idx], y[va_idx]
+    g_tr, g_va = groups[tr_idx], groups[va_idx]
+    p_tr = period[tr_idx] if period is not None else None
 
     mean, std = fit_channel_scaler(X_tr)
     X_tr_s = apply_channel_scaler(X_tr, mean, std)
@@ -81,17 +97,21 @@ def tune_regressor(X, y, groups, base_params: dict, random_state: int = RANDOM_S
 
     t_mean, t_std = fit_target_scaler(y_tr)
     y_tr_s = apply_target_scaler(y_tr, t_mean, t_std)
+    sw_tr = regressor_sample_weights(g_tr, p_tr, lineage)
 
     log = []
     best_params, best_score = None, np.inf
     for i, override in enumerate(TUNE_GRID):
         params = {**base_params, **override}
         model = CNNRegressor(params)
-        model.fit(X_tr_s, y_tr_s, epochs=TUNE_EPOCHS, patience=TUNE_PATIENCE)
+        model.fit(
+            X_tr_s, y_tr_s, epochs=TUNE_EPOCHS, patience=TUNE_PATIENCE,
+            sample_weight=sw_tr, groups=g_tr,
+        )
         y_pred = invert_target_scaler(model.predict(X_va_s), t_mean, t_std)
         rmse = float(np.sqrt(mean_squared_error(y_va, y_pred)))
-        log.append({"candidate": i, "override": override, "val_rmse": rmse})
-        print(f"    [tune] candidate {i} {override or '(defaults)'} -> val RMSE = {rmse:.4f}")
+        log.append({"candidate": i, "override": override, "val_rmse_window": rmse})
+        print(f"    [tune] candidate {i} {override or '(defaults)'} -> window val RMSE = {rmse:.4f}")
         if rmse < best_score:
             best_score, best_params = rmse, params
 

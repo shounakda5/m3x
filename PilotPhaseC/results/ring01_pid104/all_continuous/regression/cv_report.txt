@@ -1,4 +1,50 @@
-MAE  : 9.706
-RMSE : 12.413
-R^2  : 0.0169
-(n=4528, true range [7.0, 69.0], pred range [6.3, 66.5])
+Pilot Phase C regressor CV -- window-level targets and metrics
+
+
+=== Fold 1/5  (train windows=3620, test windows=908, test groups=8) ===
+MAE  : 10.229
+RMSE : 12.214
+R^2  : -0.3614
+Windows: 908
+True stress  [25.0, 62.0]
+Pred stress  [21.7, 52.4]
+
+=== Fold 2/5  (train windows=3622, test windows=906, test groups=8) ===
+MAE  : 7.333
+RMSE : 9.209
+R^2  : 0.1149
+Windows: 906
+True stress  [30.0, 69.0]
+Pred stress  [28.7, 53.6]
+
+=== Fold 3/5  (train windows=3623, test windows=905, test groups=10) ===
+MAE  : 6.875
+RMSE : 10.659
+R^2  : 0.0092
+Windows: 905
+True stress  [19.0, 61.0]
+Pred stress  [31.0, 53.5]
+
+=== Fold 4/5  (train windows=3623, test windows=905, test groups=9) ===
+MAE  : 12.840
+RMSE : 17.342
+R^2  : 0.1531
+Windows: 905
+True stress  [7.0, 64.0]
+Pred stress  [39.9, 52.5]
+
+=== Fold 5/5  (train windows=3624, test windows=904, test groups=8) ===
+MAE  : 6.682
+RMSE : 8.224
+R^2  : 0.2846
+Windows: 904
+True stress  [25.0, 58.0]
+Pred stress  [27.4, 53.5]
+
+=== Pooled out-of-fold (all test windows) ===
+MAE  : 8.793
+RMSE : 11.967
+R^2  : 0.0862
+Windows: 4528
+True stress  [7.0, 69.0]
+Pred stress  [21.7, 53.6]

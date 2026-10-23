@@ -1,0 +1,22 @@
+=== Fold 2/5  (train windows=3601, test windows=927, test groups=7) ===
+Accuracy    : 0.5523
+F1 Macro    : 0.2846
+F1 Weighted : 0.5650
+Windows     : 927
+
+                   precision    recall  f1-score   support
+
+            relax       0.75      0.47      0.58       599
+         eustress       0.00      0.00      0.00         0
+         distress       0.00      0.00      0.00        12
+eustress+distress       0.46      0.72      0.56       316
+
+         accuracy                           0.55       927
+        macro avg       0.30      0.30      0.28       927
+     weighted avg       0.64      0.55      0.57       927
+
+Confusion matrix (rows=true, cols=predicted)  classes=['relax', 'eustress', 'distress', 'eustress+distress']
+[[284  39   7 269]
+ [  0   0   0   0]
+ [  9   0   0   3]
+ [ 88   0   0 228]]

@@ -1,5 +1,7 @@
 # Pilot Phase C
 
+**Teammates adding data or training models:** start with **[TRAINING_GUIDE.md](TRAINING_GUIDE.md)** (step-by-step commands, paths, and results).
+
 A new, ongoing phase of the project: unlike the original pipeline (`data/` +
 root-level `train.py`/`train_cnn.py`) and the Pilot B cohort (`pilot_b/`),
 this phase's incoming data arrives **already labeled**. There is no
@@ -64,7 +66,7 @@ ignored):
 |---|---|---|
 | G | `Row_In_Window` | 0..111, cycles -- sorts rows within a window |
 | D | `Global_Window` | segments the row stream into 112-row windows (used instead of re-deriving window boundaries from Row_In_Window's reset, since it's already provided and verified 1:1 with it) |
-| I-P | `LED1, LED2, LED3, TempC_x100, HumidityRH_x100, AccX_mg, AccY_mg, AccZ_mg` | the 8 feature channels, fed to the model as-is (no derived cross-LED channels added -- see "Design notes" below) |
+| I-P | `LED1, LED2, LED3, TempC_x100, HumidityRH_x100, AccX_mg, AccY_mg, AccZ_mg` | 8 raw channels; loader adds `LED3-LED1` and `LED3-LED2` (10 channels total) |
 | R | `Survey_ID` | **not in the original column spec, but required**: groups every window from the same labeling interval together. Used as the cross-validation group key so temporally-adjacent, highly-correlated windows can't split across train/test. Verified globally unique across every file in a lineage. |
 | W | `Stress_0to100` | regression target |
 | X | `Label` | classification target (`relax`, `eustress`, `distress`, `eustress+distress`) |
@@ -84,26 +86,35 @@ accordingly -- don't assume it's identical without checking.
 
 ## Training a model
 
-```bash
-# Classification (predicts Label)
-python -m PilotPhaseC.src.train_classifier --lineage all_continuous
-python -m PilotPhaseC.src.train_classifier --lineage labeled_last5min
+See **[TRAINING_GUIDE.md](TRAINING_GUIDE.md)** for new participants, generalized training, and artifacts.
 
-# Regression (predicts Stress_0to100)
-python -m PilotPhaseC.src.train_regressor --lineage all_continuous
-python -m PilotPhaseC.src.train_regressor --lineage labeled_last5min
+```bash
+cd m3x
+PY=.venv/bin/python
+
+# Personalized (one person)
+$PY -m PilotPhaseC.src.train_classifier --participant ring01_pid104 --lineage all_continuous
+$PY -m PilotPhaseC.src.train_regressor --participant ring01_pid104 --lineage all_continuous
+
+# Generalized (all entries in config.PARTICIPANTS)
+$PY -m PilotPhaseC.src.train_classifier --generalized --lineage all_continuous
+
+# Refresh results/RESULTS_SUMMARY.md
+$PY -m PilotPhaseC.src.summarize_results
 ```
 
 Each run: loads the lineage (cached after the first parse), runs a small
 hyperparameter search (`src/tuning.py`, one group-aware validation split,
 reduced epoch budget -- not the full CV, to keep the search cheap), then
-runs the winning config through 5-fold cross-validation (`StratifiedGroupKFold`
+runs the winning config through cross-validation (`StratifiedGroupKFold`
 for classification, `GroupKFold` for regression; both grouped by
-`Survey_ID`), then retrains on 100% of the data and exports `.pkl` +
-`.tflite` (float32) + `.tflite` (INT8, with a quantization/tensor-arena
-report) + the fitted scaler(s). `--no-tune` skips the search and uses
-`config.CNN_PARAMS` defaults directly. A `manifest.json` ties every result
-back to its exact dataset, git commit, hyperparameters, and metrics.
+`Survey_ID`), fits OOF logit-bias calibration for the classifier, then
+retrains on 100% of the data and exports `.pkl` + `.tflite` (float32) +
+`.tflite` (INT8) + `cnn_1d_scaler.npz` (input scaler and classifier
+logit biases). Training uses class-balanced sample weights (classifier)
+and uniform per-window weights (no survey-equal downweighting); see
+`config.py`. A `manifest.json` records data, git commit, hyperparameters,
+and window-level CV metrics.
 
 ## Design notes / things worth knowing before extending this
 
@@ -112,12 +123,6 @@ back to its exact dataset, git commit, hyperparameters, and metrics.
   group across a whole lineage's multiple day-files. `Survey_ID` already
   encodes the real survey event and is verified unique across files, so
   it's the correct grouping key for leakage-safe CV.
-- **Derived channels not added**: the rest of this project (`src/models/cnn_model.py`,
-  `pilot_b/`) adds two derived cross-LED channels (`LED3-LED1`, `LED3-LED2`)
-  on top of the raw LED channels. This phase's column spec was explicit
-  (columns I-P, 8 raw channels) and that was honored literally rather than
-  assumed -- adding the same derived channels here would be a quick,
-  likely-beneficial follow-up if wanted.
 - **Regression target scaling**: the model trains against a z-scored
   `Stress_0to100` (fit on the train fold only, exactly like the input
   channel scaler) and predicts in that scaled space. Every reported metric

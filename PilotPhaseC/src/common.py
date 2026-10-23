@@ -50,6 +50,177 @@ def invert_target_scaler(y_scaled: np.ndarray, mean: float, std: float) -> np.nd
 
 
 # ---------------------------------------------------------------------------
+# Survey-equal training weights + group-level metrics
+# ---------------------------------------------------------------------------
+
+def survey_equal_weights(groups: np.ndarray) -> np.ndarray:
+    """One unit of loss per Survey_ID: w_i = 1 / (# windows in that group)."""
+    groups = np.asarray(groups)
+    _, inv, counts = np.unique(groups, return_inverse=True, return_counts=True)
+    return (1.0 / counts[inv]).astype(np.float32)
+
+
+def period_weights_for_lineage(
+    period: np.ndarray | None, lineage: str,
+) -> np.ndarray:
+    from PilotPhaseC.config import DEFAULT_PERIOD_WEIGHT, LINEAGE_PERIOD_WEIGHTS
+
+    n = len(period) if period is not None else 0
+    if period is None or n == 0:
+        return np.ones(0, dtype=np.float32)
+    mapping = LINEAGE_PERIOD_WEIGHTS.get(lineage, {})
+    return np.array(
+        [float(mapping.get(str(p), DEFAULT_PERIOD_WEIGHT)) for p in period],
+        dtype=np.float32,
+    )
+
+
+def classifier_sample_weights(
+    groups: np.ndarray,
+    y: np.ndarray,
+    period: np.ndarray | None = None,
+    lineage: str | None = None,
+) -> np.ndarray:
+    from sklearn.preprocessing import LabelEncoder
+    from sklearn.utils.class_weight import compute_class_weight
+
+    from PilotPhaseC.config import (
+        CLASSES,
+        CLASSIFIER_SURVEY_EQUAL_WEIGHTS,
+        CLASSIFIER_CLASS_BALANCED_WEIGHTS,
+    )
+
+    sw = (
+        survey_equal_weights(groups)
+        if CLASSIFIER_SURVEY_EQUAL_WEIGHTS
+        else np.ones(len(groups), dtype=np.float32)
+    )
+    if CLASSIFIER_CLASS_BALANCED_WEIGHTS:
+        le = LabelEncoder()
+        le.classes_ = np.array(CLASSES, dtype=object)
+        y_enc = le.transform(y)
+        present = np.unique(y_enc)
+        cw_present = compute_class_weight("balanced", classes=present, y=y_enc)
+        cw_full = np.ones(len(CLASSES), dtype=np.float64)
+        for cls_idx, w in zip(present, cw_present):
+            cw_full[int(cls_idx)] = w
+        sw = sw * cw_full[y_enc]
+    if lineage and period is not None and len(period) == len(sw):
+        sw = sw * period_weights_for_lineage(period, lineage)
+    return sw.astype(np.float32)
+
+
+def _class_preds_from_log_proba(log_p: np.ndarray, classes: np.ndarray, biases: np.ndarray | None = None) -> np.ndarray:
+    scores = log_p + biases.reshape(1, -1) if biases is not None else log_p
+    return classes[np.argmax(scores, axis=1)]
+
+
+def apply_logit_biases(proba: np.ndarray, biases: np.ndarray) -> np.ndarray:
+    """biases shape (n_classes,) added to log-probability before argmax."""
+    from PilotPhaseC.config import CLASSES
+
+    classes = np.asarray(CLASSES, dtype=object)
+    log_p = np.log(np.clip(proba, 1e-12, 1.0))
+    return _class_preds_from_log_proba(log_p, classes, biases)
+
+
+def predict_with_logit_biases(model, X: np.ndarray, biases: np.ndarray) -> np.ndarray:
+    proba = model.predict_proba(X)
+    return apply_logit_biases(proba, biases)
+
+
+def tune_logit_biases(
+    y_true: np.ndarray,
+    proba: np.ndarray,
+    classes: list[str] | None = None,
+    n_random: int = 4000,
+    random_state: int = 42,
+) -> tuple[np.ndarray, float]:
+    """Random search over per-class logit biases to maximize macro-F1 (OOF)."""
+    from sklearn.metrics import f1_score
+
+    from PilotPhaseC.config import CLASSES as DEFAULT_CLASSES
+
+    classes = np.asarray(classes or DEFAULT_CLASSES, dtype=object)
+    log_p = np.log(np.clip(proba, 1e-12, 1.0))
+
+    rng = np.random.RandomState(random_state)
+    best_b = np.zeros(len(classes), dtype=np.float64)
+    best_score = f1_score(
+        y_true, _class_preds_from_log_proba(log_p, classes),
+        average="macro", labels=classes, zero_division=0,
+    )
+
+    for _ in range(n_random):
+        b = rng.uniform(-1.5, 1.5, size=len(classes))
+        pred = _class_preds_from_log_proba(log_p, classes, b)
+        score = f1_score(y_true, pred, average="macro", labels=classes, zero_division=0)
+        if score > best_score:
+            best_score, best_b = score, b.copy()
+
+    # Coordinate refinement
+    step = 0.25
+    for _ in range(3):
+        improved = True
+        while improved:
+            improved = False
+            for j in range(len(classes)):
+                for delta in (-step, step):
+                    b_try = best_b.copy()
+                    b_try[j] += delta
+                    pred = _class_preds_from_log_proba(log_p, classes, b_try)
+                    score = f1_score(y_true, pred, average="macro", labels=classes, zero_division=0)
+                    if score > best_score + 1e-6:
+                        best_score, best_b = score, b_try
+                        improved = True
+        step *= 0.5
+
+    return best_b.astype(np.float32), float(best_score)
+
+
+def regressor_sample_weights(
+    groups: np.ndarray,
+    period: np.ndarray | None = None,
+    lineage: str | None = None,
+) -> np.ndarray:
+    from PilotPhaseC.config import REGRESSOR_SURVEY_EQUAL_WEIGHTS
+
+    sw = (
+        survey_equal_weights(groups)
+        if REGRESSOR_SURVEY_EQUAL_WEIGHTS
+        else np.ones(len(groups), dtype=np.float32)
+    )
+    if lineage and period is not None and len(period) == len(sw):
+        sw = sw * period_weights_for_lineage(period, lineage)
+    return sw.astype(np.float32)
+
+
+def split_train_val_by_group(
+    groups: np.ndarray, val_fraction: float, random_state: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Boolean masks (train, val) holding out whole Survey_ID groups."""
+    groups = np.asarray(groups)
+    unique = np.unique(groups)
+    n_val = max(1, int(round(len(unique) * val_fraction)))
+    if n_val >= len(unique):
+        n_val = max(1, len(unique) // 5)
+    rng = np.random.RandomState(random_state)
+    val_groups = set(rng.choice(unique, size=n_val, replace=False))
+    val_mask = np.array([g in val_groups for g in groups], dtype=bool)
+    return ~val_mask, val_mask
+
+
+def effective_classification_folds(y: np.ndarray, groups: np.ndarray, n_folds_max: int) -> int:
+    import pandas as pd
+
+    gt = pd.DataFrame({"g": groups, "y": y}).drop_duplicates("g")
+    min_groups = int(gt.groupby("y").size().min())
+    if min_groups < 2:
+        return max(2, min(n_folds_max, min_groups if min_groups > 0 else 2))
+    return max(2, min(n_folds_max, min_groups))
+
+
+# ---------------------------------------------------------------------------
 # TFLite export
 # ---------------------------------------------------------------------------
 
