@@ -80,6 +80,7 @@ def classifier_sample_weights(
     y: np.ndarray,
     period: np.ndarray | None = None,
     lineage: str | None = None,
+    classes: list[str] | None = None,
 ) -> np.ndarray:
     from sklearn.preprocessing import LabelEncoder
     from sklearn.utils.class_weight import compute_class_weight
@@ -90,6 +91,7 @@ def classifier_sample_weights(
         CLASSIFIER_CLASS_BALANCED_WEIGHTS,
     )
 
+    class_list = classes or CLASSES
     sw = (
         survey_equal_weights(groups)
         if CLASSIFIER_SURVEY_EQUAL_WEIGHTS
@@ -97,11 +99,11 @@ def classifier_sample_weights(
     )
     if CLASSIFIER_CLASS_BALANCED_WEIGHTS:
         le = LabelEncoder()
-        le.classes_ = np.array(CLASSES, dtype=object)
+        le.classes_ = np.array(class_list, dtype=object)
         y_enc = le.transform(y)
         present = np.unique(y_enc)
         cw_present = compute_class_weight("balanced", classes=present, y=y_enc)
-        cw_full = np.ones(len(CLASSES), dtype=np.float64)
+        cw_full = np.ones(len(class_list), dtype=np.float64)
         for cls_idx, w in zip(present, cw_present):
             cw_full[int(cls_idx)] = w
         sw = sw * cw_full[y_enc]
@@ -115,18 +117,20 @@ def _class_preds_from_log_proba(log_p: np.ndarray, classes: np.ndarray, biases: 
     return classes[np.argmax(scores, axis=1)]
 
 
-def apply_logit_biases(proba: np.ndarray, biases: np.ndarray) -> np.ndarray:
+def apply_logit_biases(proba: np.ndarray, biases: np.ndarray, classes: list[str] | None = None) -> np.ndarray:
     """biases shape (n_classes,) added to log-probability before argmax."""
-    from PilotPhaseC.config import CLASSES
+    from PilotPhaseC.config import CLASSES as DEFAULT_CLASSES
 
-    classes = np.asarray(CLASSES, dtype=object)
+    class_arr = np.asarray(classes or DEFAULT_CLASSES, dtype=object)
     log_p = np.log(np.clip(proba, 1e-12, 1.0))
-    return _class_preds_from_log_proba(log_p, classes, biases)
+    return _class_preds_from_log_proba(log_p, class_arr, biases)
 
 
-def predict_with_logit_biases(model, X: np.ndarray, biases: np.ndarray) -> np.ndarray:
+def predict_with_logit_biases(
+    model, X: np.ndarray, biases: np.ndarray, classes: list[str] | None = None,
+) -> np.ndarray:
     proba = model.predict_proba(X)
-    return apply_logit_biases(proba, biases)
+    return apply_logit_biases(proba, biases, classes=classes)
 
 
 def tune_logit_biases(

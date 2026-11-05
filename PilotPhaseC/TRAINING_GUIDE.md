@@ -250,6 +250,39 @@ For code or environment issues, contact the team lead with the **full terminal e
 
 ---
 
+## Ring 3 / Ring 4 deploy (legacy 112-row only, 4-class + binary)
+
+Registered keys: `ring03_pid102`, `ring04_pid101`. Data under `All_continous/`. Training uses **legacy** files only (excludes `*new_format*`), **112 samples/window**, matching Ring 1. EMA period weights apply.
+
+Outputs:
+
+- `results/<participant>/all_continuous/classification_4class/`
+- `results/<participant>/all_continuous/classification_2class/` (`good` = relax+eustress, `bad` = distress+eustress+distress)
+
+**Generalized** (Ring 1 + Ring 3 + Ring 4, legacy 112-row only):
+
+```bash
+PY=.venv/bin/python
+$PY -m PilotPhaseC.src.train_classifier --generalized --lineage all_continuous --label-mode four_class
+$PY -m PilotPhaseC.src.train_classifier --generalized --lineage all_continuous --label-mode binary_good_bad
+```
+
+**Per ring (example Ring 4):**
+
+```bash
+PID=ring04_pid101
+$PY -m PilotPhaseC.src.train_classifier --participant $PID --lineage all_continuous --label-mode four_class --force-reload
+$PY -m PilotPhaseC.src.train_classifier --participant $PID --lineage all_continuous --label-mode binary_good_bad --force-reload
+```
+
+Inspect parsed data before training:
+
+```bash
+$PY -m PilotPhaseC.src.loader --participant ring03_pid102 --lineage all_continuous --force-reload
+```
+
+---
+
 ## Reference: existing example
 
 | Item | Value |

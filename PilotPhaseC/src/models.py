@@ -81,10 +81,11 @@ class CNNClassifier:
 
     name = "CNN_1D_classifier"
 
-    def __init__(self, params: dict, **overrides):
+    def __init__(self, params: dict, class_names: list[str] | None = None, **overrides):
         self._params = {**params, **overrides}
         self._model = None
         self._label_encoder = LabelEncoder()
+        self._class_names = class_names
 
     def requires_scaling(self) -> bool:
         return True
@@ -130,9 +131,10 @@ class CNNClassifier:
 
         _set_seeds(p["random_state"])
 
-        self._label_encoder.classes_ = np.array(CLASSES, dtype=object)
+        class_names = self._class_names or CLASSES
+        self._label_encoder.classes_ = np.array(class_names, dtype=object)
         y_enc = self._label_encoder.transform(y).astype(np.int32)
-        n_classes = len(CLASSES)
+        n_classes = len(class_names)
         n_t, n_c = X.shape[1], X.shape[2]
 
         sw = sample_weight

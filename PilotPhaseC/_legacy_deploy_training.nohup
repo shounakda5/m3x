@@ -1,0 +1,8 @@
+===== 2026-11-05T14:21:36Z .venv/bin/python -m PilotPhaseC.src.train_classifier --participant ring04_pid101 --lineage all_continuous --label-mode four_class --force-reload --no-legacy-fallback =====
+Loading all_continuous (ring04_pid101) label_mode=four_class ...
+  X: (5005, 112, 10)  groups: 51  dropped: 0
+  drop_reasons: {'wrong_row_count': 0, 'ambiguous': 0, 'nonwear': 0, 'high_motion': 0}
+  Training labels: {'relax': 1712, 'eustress+distress': 1209, 'distress': 1202, 'eustress': 882}
+  Underlying 4-class support: {'relax': 1712, 'eustress': 882, 'distress': 1202, 'eustress+distress': 1209}
+
+Tuning ...

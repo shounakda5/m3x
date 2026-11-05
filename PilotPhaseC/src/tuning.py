@@ -49,6 +49,8 @@ def _val_split(groups, random_state):
 def tune_classifier(
     X, y, groups, base_params: dict, random_state: int = RANDOM_STATE,
     period=None, lineage: str | None = None,
+    classes: list[str] | None = None,
+    class_names: list[str] | None = None,
 ) -> tuple[dict, list[dict]]:
     tr_idx, va_idx = _val_split(groups, random_state)
     X_tr, X_va = X[tr_idx], X[va_idx]
@@ -60,19 +62,20 @@ def tune_classifier(
     X_tr_s = apply_channel_scaler(X_tr, mean, std)
     X_va_s = apply_channel_scaler(X_va, mean, std)
 
-    sw_tr = classifier_sample_weights(g_tr, y_tr, p_tr, lineage)
+    metric_classes = classes or CLASSES
+    sw_tr = classifier_sample_weights(g_tr, y_tr, p_tr, lineage, classes=metric_classes)
 
     log = []
     best_params, best_score = None, -1.0
     for i, override in enumerate(TUNE_GRID):
         params = {**base_params, **override}
-        model = CNNClassifier(params)
+        model = CNNClassifier(params, class_names=class_names or metric_classes)
         model.fit(
             X_tr_s, y_tr, epochs=TUNE_EPOCHS, patience=TUNE_PATIENCE,
             sample_weight=sw_tr, groups=g_tr,
         )
         y_pred = model.predict(X_va_s)
-        score = f1_score(y_va, y_pred, average="macro", labels=CLASSES, zero_division=0)
+        score = f1_score(y_va, y_pred, average="macro", labels=metric_classes, zero_division=0)
         log.append({"candidate": i, "override": override, "val_f1_macro_window": score})
         print(f"    [tune] candidate {i} {override or '(defaults)'} -> window val F1 macro = {score:.4f}")
         if score > best_score:

@@ -1,0 +1,22 @@
+=== Fold 3/5 ===
+Accuracy    : 0.5882
+F1 Macro    : 0.3906
+F1 Weighted : 0.6578
+Windows     : 680
+
+                   precision    recall  f1-score   support
+
+            relax       0.47      0.49      0.48        82
+         eustress       0.25      0.34      0.29        98
+         distress       0.00      0.00      0.00        25
+eustress+distress       0.96      0.69      0.80       475
+
+         accuracy                           0.59       680
+        macro avg       0.42      0.38      0.39       680
+     weighted avg       0.76      0.59      0.66       680
+
+Confusion matrix (rows=true, cols=predicted)  classes=['relax', 'eustress', 'distress', 'eustress+distress']
+[[ 40  34   7   1]
+ [  5  33  52   8]
+ [  0  19   0   6]
+ [ 41  47  60 327]]

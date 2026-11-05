@@ -1,0 +1,140 @@
+Pilot Phase C classifier (four_class, primary)
+
+
+=== Fold 1/5 ===
+Accuracy    : 0.5645
+F1 Macro    : 0.4792
+F1 Weighted : 0.5706
+Windows     : 2634
+
+                   precision    recall  f1-score   support
+
+            relax       0.72      0.74      0.73      1007
+         eustress       0.15      0.20      0.17       293
+         distress       0.46      0.44      0.45       302
+eustress+distress       0.59      0.53      0.56      1032
+
+         accuracy                           0.56      2634
+        macro avg       0.48      0.48      0.48      2634
+     weighted avg       0.58      0.56      0.57      2634
+
+Confusion matrix (rows=true, cols=predicted)  classes=['relax', 'eustress', 'distress', 'eustress+distress']
+[[746  29   8 224]
+ [ 15  58 141  79]
+ [ 59  34 134  75]
+ [210 267   6 549]]
+
+=== Fold 2/5 ===
+Accuracy    : 0.4647
+F1 Macro    : 0.4056
+F1 Weighted : 0.4775
+Windows     : 2623
+
+                   precision    recall  f1-score   support
+
+            relax       0.64      0.35      0.46      1005
+         eustress       0.13      0.17      0.15       289
+         distress       0.28      0.73      0.41       296
+eustress+distress       0.65      0.58      0.61      1033
+
+         accuracy                           0.46      2623
+        macro avg       0.42      0.46      0.41      2623
+     weighted avg       0.55      0.46      0.48      2623
+
+Confusion matrix (rows=true, cols=predicted)  classes=['relax', 'eustress', 'distress', 'eustress+distress']
+[[356 171 199 279]
+ [ 23  49 182  35]
+ [  4  64 216  12]
+ [176  98 161 598]]
+
+=== Fold 3/5 ===
+Accuracy    : 0.3192
+F1 Macro    : 0.2975
+F1 Weighted : 0.3358
+Windows     : 2635
+
+                   precision    recall  f1-score   support
+
+            relax       0.36      0.22      0.27      1004
+         eustress       0.12      0.35      0.17       283
+         distress       0.28      0.29      0.29       315
+eustress+distress       0.50      0.42      0.46      1033
+
+         accuracy                           0.32      2635
+        macro avg       0.32      0.32      0.30      2635
+     weighted avg       0.38      0.32      0.34      2635
+
+Confusion matrix (rows=true, cols=predicted)  classes=['relax', 'eustress', 'distress', 'eustress+distress']
+[[220 429 127 228]
+ [ 21  99  40 123]
+ [  9 137  91  78]
+ [354 185  63 431]]
+
+=== Fold 4/5 ===
+Accuracy    : 0.3387
+F1 Macro    : 0.3203
+F1 Weighted : 0.3575
+Windows     : 2622
+
+                   precision    recall  f1-score   support
+
+            relax       0.60      0.27      0.38      1005
+         eustress       0.24      0.30      0.27       290
+         distress       0.16      0.50      0.24       293
+eustress+distress       0.44      0.37      0.40      1034
+
+         accuracy                           0.34      2622
+        macro avg       0.36      0.36      0.32      2622
+     weighted avg       0.45      0.34      0.36      2622
+
+Confusion matrix (rows=true, cols=predicted)  classes=['relax', 'eustress', 'distress', 'eustress+distress']
+[[275  87 239 404]
+ [ 34  88 131  37]
+ [ 30  67 147  49]
+ [116 129 411 378]]
+
+=== Fold 5/5 ===
+Accuracy    : 0.4047
+F1 Macro    : 0.3676
+F1 Weighted : 0.4398
+Windows     : 2617
+
+                   precision    recall  f1-score   support
+
+            relax       0.73      0.33      0.46      1005
+         eustress       0.19      0.24      0.21       284
+         distress       0.17      0.60      0.26       295
+eustress+distress       0.63      0.46      0.53      1033
+
+         accuracy                           0.40      2617
+        macro avg       0.43      0.41      0.37      2617
+     weighted avg       0.57      0.40      0.44      2617
+
+Confusion matrix (rows=true, cols=predicted)  classes=['relax', 'eustress', 'distress', 'eustress+distress']
+[[335 101 385 184]
+ [  7  69 164  44]
+ [ 38  26 176  55]
+ [ 76 164 314 479]]
+
+=== Pooled OOF (calibrated) ===
+Accuracy    : 0.4256
+F1 Macro    : 0.3884
+F1 Weighted : 0.4491
+Windows     : 13131
+
+                   precision    recall  f1-score   support
+
+            relax       0.60      0.42      0.50      5026
+         eustress       0.18      0.47      0.26      1439
+         distress       0.28      0.32      0.30      1501
+eustress+distress       0.57      0.45      0.50      5165
+
+         accuracy                           0.43     13131
+        macro avg       0.41      0.42      0.39     13131
+     weighted avg       0.51      0.43      0.45     13131
+
+Confusion matrix (rows=true, cols=predicted)  classes=['relax', 'eustress', 'distress', 'eustress+distress']
+[[2120 1202  498 1206]
+ [ 146  680  338  275]
+ [ 175  581  482  263]
+ [1086 1374  399 2306]]

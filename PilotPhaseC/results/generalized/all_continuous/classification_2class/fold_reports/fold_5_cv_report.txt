@@ -1,0 +1,18 @@
+=== Fold 5/5 ===
+Accuracy    : 0.5877
+F1 Macro    : 0.5856
+F1 Weighted : 0.5861
+Windows     : 2593
+
+              precision    recall  f1-score   support
+
+        good       0.59      0.52      0.56      1277
+         bad       0.58      0.65      0.62      1316
+
+    accuracy                           0.59      2593
+   macro avg       0.59      0.59      0.59      2593
+weighted avg       0.59      0.59      0.59      2593
+
+Confusion matrix (rows=true, cols=predicted)  classes=['good', 'bad']
+[[670 607]
+ [462 854]]
