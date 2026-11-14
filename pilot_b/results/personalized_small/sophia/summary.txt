@@ -1,7 +1,0 @@
-Sophia personalized SMALL CNN (detrend=False) -- summary
-
-Trainable params  : 4019
-Float32 file size : 20.3 KB
-INT8 file size    : 11.1 KB
-CV accuracy / F1 macro : 0.9494 / 0.9268
-Estimated RAM (tensor arena): 3.50 KB

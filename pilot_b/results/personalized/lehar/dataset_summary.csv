@@ -1,4 +1,0 @@
-participant_id,name,rel_path,survey_date,n_bursts_found,n_bursts_cropped_ringoff,n_bursts_kept,n_windows_labeled,n_windows_unknown_dropped,has_survey
-502,Lehar,3_Lehar_502/Day1_june6/lehar1.csv,2026-06-17,190,0,190,310,61,True
-502,Lehar,3_Lehar_502/Day2_June24/lehar2.csv,2026-06-24,505,324,181,353,0,True
-502,Lehar,3_Lehar_502/Day3_July6th/lehar3.csv,2026-07-06,235,0,235,454,5,True

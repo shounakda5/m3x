@@ -1,7 +1,0 @@
-=== Fold 4/5  (train windows=467, test windows=116, test groups=11) ===
-MAE  : 14.268
-RMSE : 16.087
-R^2  : 0.1446
-Windows: 116
-True stress  [9.0, 64.0]
-Pred stress  [8.6, 49.9]

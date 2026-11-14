@@ -1,9 +1,0 @@
-Pilot Phase C classifier -- generalized/all_continuous -- INT8 report
-Label mode: binary_good_bad
-Model classes (output order): ['good', 'bad']
-Window shape (T, C): (112, 10)
-Logit biases: [-1.4834825992584229, -1.4770078659057617]
-Float32 TFLite: 118.5 KB
-INT8 TFLite: 44.2 KB
-Float32 vs INT8 agreement (n=200): 0.9850
-Estimated tensor arena: 5.25 KB

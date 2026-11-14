@@ -1,9 +1,0 @@
-Pilot Phase C classifier -- generalized/all_continuous -- INT8 report
-Label mode: four_class
-Model classes (output order): ['relax', 'eustress', 'distress', 'eustress+distress']
-Window shape (T, C): (112, 10)
-Logit biases: [0.3267587423324585, 0.33706897497177124, -0.047201406210660934, 0.2124369591474533]
-Float32 TFLite: 188.9 KB
-INT8 TFLite: 63.3 KB
-Float32 vs INT8 agreement (n=200): 0.9950
-Estimated tensor arena: 7.00 KB

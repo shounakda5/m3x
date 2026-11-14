@@ -1,6 +1,0 @@
-model,fold,accuracy,f1_macro,f1_weighted
-CNN_1D_2block,1,0.8949,0.885,
-CNN_1D_2block,2,0.793,0.7866,
-CNN_1D_2block,3,0.8125,0.8023,
-CNN_1D_2block,4,0.8471,0.839,
-CNN_1D_2block,5,0.7969,0.7897,

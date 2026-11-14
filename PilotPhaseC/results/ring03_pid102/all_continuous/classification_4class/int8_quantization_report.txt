@@ -1,9 +1,0 @@
-Pilot Phase C classifier -- ring03_pid102/all_continuous -- INT8 report
-Label mode: four_class
-Model classes (output order): ['relax', 'eustress', 'distress', 'eustress+distress']
-Window shape (T, C): (112, 10)
-Logit biases: [0.7797607779502869, -0.8579529523849487, 1.148188591003418, 1.4131747484207153]
-Float32 TFLite: 188.9 KB
-INT8 TFLite: 63.3 KB
-Float32 vs INT8 agreement (n=200): 0.9950
-Estimated tensor arena: 7.00 KB

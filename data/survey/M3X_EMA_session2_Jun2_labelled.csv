@@ -1,8 +1,0 @@
-StartDate,EndDate,Participant ID,Opportunity_score,Pressure_score,Label
-6/2/2026 14:30,6/2/2026 14:30,501,4,4,eustress+distress
-6/2/2026 15:04,6/2/2026 15:04,501,5,4,eustress+distress
-6/2/2026 15:37,6/2/2026 15:37,501,5,4,eustress+distress
-6/2/2026 16:06,6/2/2026 16:06,501,5,3,eustress
-6/2/2026 16:32,6/2/2026 16:32,501,4,4,eustress+distress
-6/2/2026 17:23,6/2/2026 17:23,501,3,3,relax
-6/2/2026 17:32,6/2/2026 17:32,501,4,2,eustress
