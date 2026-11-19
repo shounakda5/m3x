@@ -1,0 +1,13 @@
+ring,Label,windows,usable
+R3,distress,272,91
+R3,eustress,530,127
+R3,eustress+distress,2379,538
+R3,relax,399,148
+R4,distress,1199,69
+R4,eustress,882,63
+R4,eustress+distress,1199,68
+R4,relax,1708,131
+R1,distress,25,12
+R1,eustress,25,13
+R1,eustress+distress,1759,431
+R1,relax,3331,1177
